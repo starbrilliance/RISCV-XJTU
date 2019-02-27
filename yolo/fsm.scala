@@ -6,7 +6,7 @@ import chisel3.util._
 class FsmDdrIO extends Bundle {
   val ddrDataEn = Output(Bool())
   val ddrWeightEn = Output(Bool())
-  val ddrStoreEn = Output(Bool())
+  val ddrBiasEn = Output(Bool())
   val ddrComplete = Input(Bool())
   val infoComplete = Input(Bool())
 }
@@ -26,6 +26,8 @@ class FsmIO extends Bundle {
   val fromReg = Flipped(new RegfileToFsmIO)
   // to information
   val toInfo = new FsmInfoIO
+  // to store
+  val ddrStoreEn = Output(Bool())
   // is idle
   val isIdle = Output(Bool())
 }
@@ -33,10 +35,10 @@ class FsmIO extends Bundle {
 class Fsm extends Module {
   val io = IO(new FsmIO)
 
-  val idle :: info :: readImage :: readWeight :: calculate :: store :: Nil = Enum(6)
+  val idle :: info :: readImage :: readWeight :: readBias :: calculate :: store :: Nil = Enum(7)
 
   val state = RegInit(idle)
-  val stateSignals = Wire(UInt(4.W))
+  val stateSignals = Wire(UInt(3.W))
 
   switch(state) {
     is(idle) {
@@ -59,6 +61,11 @@ class Fsm extends Module {
       }
     }
     is(readWeight) {
+      when(io.fsmToDdr.ddrComplete) {  
+        state := readBias
+      }
+    }
+    is(readBias) {
       when(io.fsmToDdr.ddrComplete) {  
         state := calculate
       }
@@ -85,6 +92,7 @@ class Fsm extends Module {
                                            (state === info)       -> BitPat.bitPatToUInt(INFO),
                                            (state === readImage)  -> BitPat.bitPatToUInt(RI),
                                            (state === readWeight) -> BitPat.bitPatToUInt(RW),
+                                           (state === readBias)   -> BitPat.bitPatToUInt(RB),
                                            (state === calculate)  -> BitPat.bitPatToUInt(CAL),
                                            (state === store)      -> BitPat.bitPatToUInt(STORE)))
   
@@ -94,30 +102,33 @@ class Fsm extends Module {
   io.toInfo.infoEn := signals(1)
   io.fsmToDdr.ddrDataEn := signals(2)
   io.fsmToDdr.ddrWeightEn := signals(3)
-  io.fsmToPad.padEn := signals(4)
-  io.fsmToDdr.ddrStoreEn := signals(5)
+  io.fsmToDdr.ddrBiasEn := signals(4)
+  io.fsmToPad.padEn := signals(5)
+  io.ddrStoreEn := signals(6)
 }
 
 object Fsm {
-  def IDLE = BitPat("b0000")
-  def INFO = BitPat("b0001")
-  def RI = BitPat("b0010")
-  def RW = BitPat("b0011")
-  def CAL = BitPat("b0100")
-  def STORE = BitPat("b0101")
+  def IDLE = BitPat("b000")
+  def INFO = BitPat("b001")
+  def RI = BitPat("b010")
+  def RW = BitPat("b011")
+  def RB = BitPat("b100")
+  def CAL = BitPat("b101")
+  def STORE = BitPat("b110")
 
   val Y = true.B
   val N = false.B
 
   val default =
-    //               idle   infoEn  ddrDataEn  ddrWeightEn  padEn  ddrStoreEn
-    //                |       |        |            |         |         |       
-                List( N,      N,       N,           N,        N,        N  )
+    //               idle   infoEn  ddrDataEn  ddrWeightEn  ddrBiasEn  padEn  ddrStoreEn
+    //                |       |        |            |           |        |        |  
+                List( N,      N,       N,           N,          N,       N,       N  )
   val map = Array(
-        IDLE -> List( Y,      N,       N,           N,        N,        N  ),
-        INFO -> List( N,      Y,       N,           N,        N,        N  ),
-        RI   -> List( N,      N,       Y,           N,        N,        N  ),
-        RW   -> List( N,      N,       N,           Y,        N,        N  ),
-        CAL  -> List( N,      N,       N,           N,        Y,        N  ),
-        STORE-> List( N,      N,       N,           N,        N,        Y  ))  
+        IDLE -> List( Y,      N,       N,           N,          N,       N,       N  ),
+        INFO -> List( N,      Y,       N,           N,          N,       N,       N  ),
+        RI   -> List( N,      N,       Y,           N,          N,       N,       N  ),
+        RW   -> List( N,      N,       N,           Y,          N,       N,       N  ),
+        RB   -> List( N,      N,       N,           N,          Y,       N,       N  ),
+        CAL  -> List( N,      N,       N,           N,          N,       Y,       N  ),
+        STORE-> List( N,      N,       N,           N,          N,       N,       Y  ))  
 }

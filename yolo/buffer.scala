@@ -62,3 +62,15 @@ object WeightBufferParameter {
   val addrEnd = readDepth - 1.U
   val addrHalf = (readDepth >> 1) - 1.U
 }
+
+// BiasBuffer 256×512b
+class BiasBuffer extends BlackBox {
+  val io = IO(new Bundle {
+    val clka = Input(Clock())
+    val ena = Input(Bool()) 
+    val wea = Input(Bool())
+    val addra = Input(UInt(9.W))
+    val dina = Input(UInt(512.W))    
+    val douta = Output(UInt(256.W))  
+  })
+}

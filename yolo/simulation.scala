@@ -39,22 +39,35 @@ class Simulator extends Module {
   io.toTop.simData <> io.simDDR
 
   import Instructions._
-  val inst = VecInit(0xB.U,        // YoloOutputAddr
+  val inst = VecInit(0x200000B.U,  // YoloRegReset
+                     0xB.U,        // YoloOutputAddr
                      0x8B.U,       // YoloInputAddr
                      0x10B.U,      // YoloWeightAddr
+                     0x18B.U,      // YoloBiasAddr
+                     0x20B.U,      // YoloBiasInfo
                      0x18B.U,      // YoloInputInfo
                      0x20B.U,      // YoloOutputInfo
                      0x400000B.U,  // YoloFSMStart
                      0x600000B.U)  // YoloNOP
-  val info = VecInit(0.U, 0.U, 0x20000000.U, 0x70003.U, 0xDB8020.U)
+  
+  val info = VecInit(0.U,           // YoloRegReset
+                     0.U,           // YoloOutputAddr
+                     0.U,           // YoloInputAddr
+                     0x10000000.U,  // YoloWeightAddr
+                     0x20000000.U,  // YoloBiasAddr
+                     0x4.U,         // YoloBiasInfo
+                     0x70003.U,     // YoloInputInfo
+                     0xDB8004.U,    // YoloOutputInfo
+                     0.U,           // YoloFSMStart
+                     0.U)           // YoloNOP
 
-  val count = RegInit(0.U(3.W))
+  val count = RegInit(0.U(4.W))
 
   when(io.toTop.simulationStart) {
     count := Mux(io.toTop.instEnd, count, count + 1.U)
   }
 
-  io.toTop.instEnd := count === 7.U
+  io.toTop.instEnd := count === 10.U
   io.core_clk := clock
   io.core_cmd_inst := inst(count)
   io.core_cmd_rs1 := info(count)
