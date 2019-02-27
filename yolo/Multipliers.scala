@@ -57,3 +57,45 @@ class SeventeenMEleven extends BlackBox {
     val P = Output(UInt(28.W)) // output wire [27 : 0] P  
   })
 }
+
+// 8bits × 8bits SInt
+class SIntEightMEight extends BlackBox {
+  val io = IO(new Bundle {
+    val CLK = Input(Clock())  // input wire CLK
+    val A = Input(SInt(8.W))  // input wire [7 : 0] A
+    val B = Input(SInt(8.W))  // input wire [7 : 0] B
+    val CE = Input(Bool())    // input wire CE
+    val P = Output(SInt(16.W)) // output wire [15 : 0] P  
+  })
+}
+
+// pp change
+class ElevenMEleven extends BlackBox {
+  val io = IO(new Bundle {
+    val CLK = Input(Clock())  // input wire CLK
+    val A = Input(UInt(11.W))  // input wire [10 : 0] A
+    val B = Input(UInt(11.W))  // input wire [10 : 0] B
+    val CE = Input(Bool())    // input wire CE
+    val P = Output(UInt(22.W)) // output wire [21 : 0] P  
+  })
+}
+
+class TwentyoneMFour extends BlackBox{
+  val io = IO(new Bundle {
+    val CLK = Input(Clock())  // input wire CLK
+    val A = Input(UInt(21.W))  // input wire [10 : 0] A
+    val B = Input(UInt(4.W))  // input wire [10 : 0] B
+    val CE = Input(Bool())    // input wire CE
+    val P = Output(UInt(25.W)) // output wire [21 : 0] P  
+  })
+}
+
+class TwentyeightMFour extends BlackBox{
+    val io = IO(new Bundle {
+    val CLK = Input(Clock())  // input wire CLK
+    val A = Input(UInt(28.W))  // input wire [10 : 0] A
+    val B = Input(UInt(4.W))  // input wire [10 : 0] B
+    val CE = Input(Bool())    // input wire CE
+    val P = Output(UInt(32.W)) // output wire [21 : 0] P  
+  })
+}

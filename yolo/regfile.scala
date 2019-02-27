@@ -8,7 +8,7 @@ class RegfileToFsmIO extends Bundle {
 }
 
 class RegfileToInfoIO extends Bundle {
-  val readData = Output(Vec(5, UInt(32.W)))
+  val readData = Output(Vec(7, UInt(32.W)))
 }
 
 class Regfile extends Module {
@@ -23,15 +23,15 @@ class Regfile extends Module {
     val toFsm = new RegfileToFsmIO
   })
   
-  val dataRegs = RegInit(VecInit(Seq.fill(5)(0.U(32.W))))
+  val dataRegs = RegInit(VecInit(Seq.fill(7)(0.U(32.W))))
 
   when(io.decoderPorts.writeEn) {
     dataRegs(io.decoderPorts.regNum) := io.writeData
   } .elsewhen(io.layerComplete) {
-    dataRegs(3) := dataRegs(4)(18, 0)
+    dataRegs(5) := dataRegs(6)(18, 0)
   }
   
   io.toInfo.readData := dataRegs
-  io.toFsm.firstLayer := dataRegs(4)(23)
-  io.toFsm.finalLayer := dataRegs(4)(24)
+  io.toFsm.firstLayer := dataRegs(6)(23)
+  io.toFsm.finalLayer := dataRegs(6)(24)
 }

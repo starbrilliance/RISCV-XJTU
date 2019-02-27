@@ -51,14 +51,10 @@ class Fifo(width: Int, depth: Int) extends RawModule {
     grayWritePtrNext := (binaryWritePtrNext >> 1) ^ binaryWritePtrNext
     grayWritePtr := grayWritePtrNext
     writeToReadPtr := grayWritePtr
-    fullValue := grayWritePtrNext === Cat(~grayReadPtrDelay1(depth, depth - 1), grayReadPtrDelay1(depth - 2, 0))
+    fullValue := (grayWritePtrNext === Cat(~grayReadPtrDelay1(depth, depth - 1), grayReadPtrDelay1(depth - 2, 0)))
     isFull := fullValue
 
-    when(io.sys.systemRst) {
-      for(i <- 0 until (1 << depth)) {
-        ram.write(i.U, 0.U)
-      }
-    } .elsewhen(io.wr.writeEn && !isFull) {
+    when(io.wr.writeEn && !isFull) {
       ram.write(binaryWritePtr(depth - 1, 0), io.wr.dataIn)
     }
 
@@ -80,7 +76,7 @@ class Fifo(width: Int, depth: Int) extends RawModule {
     grayReadPtrNext := (binaryReadPtrNext >> 1) ^ binaryReadPtrNext
     grayReadPtr := grayReadPtrNext
     readToWritePtr := grayReadPtr
-    emptyValue := grayReadPtrNext === grayWritePtrDelay1
+    emptyValue := (grayReadPtrNext === grayWritePtrDelay1)
     isEmpty := emptyValue
 
     io.rd.dataOut := ram.read(binaryReadPtr(depth - 1, 0), io.rd.readEn && !isEmpty)

@@ -4,21 +4,28 @@ import chisel3._
 
 class MaxComparator extends Module {
   val io = IO(new Bundle {
-    val dataIn = Input(Vec(4, SInt(8.W)))
+    val writeComplete = Input(Bool())
+    val dataIn = Input(Vec(4, UInt(8.W)))
     val validIn = Input(Bool())
-    val dataOut = Output(SInt(8.W))
+    val dataOut = Output(UInt(8.W))
     val validOut = Output(Bool())
   })
 
-  val dataTemp = RegInit(VecInit(Seq.fill(2)(0.S(8.W))))
+  val dataTemp = Wire(Vec(3, UInt(8.W)))
+  val dataTempReg = RegInit(0.U(8.W))
   val validDelay = RegNext(io.validIn)
 
-  when(io.validIn) {
-    dataTemp(0) := Mux(io.dataIn(0) > io.dataIn(1), io.dataIn(0), io.dataIn(1))
-    dataTemp(1) := Mux(io.dataIn(2) > io.dataIn(3), io.dataIn(2), io.dataIn(3))
+  dataTemp(0) := Mux(io.dataIn(0) > io.dataIn(1), io.dataIn(0), io.dataIn(1))
+  dataTemp(1) := Mux(io.dataIn(2) > io.dataIn(3), io.dataIn(2), io.dataIn(3))
+  dataTemp(2) := Mux(dataTemp(0) > dataTemp(1), dataTemp(0), dataTemp(1))
+
+  when(io.writeComplete) {
+    dataTempReg := 0.U
+  } .elsewhen(io.validIn) {
+    dataTempReg := dataTemp(2)
   }
 
-  io.dataOut := Mux(dataTemp(0) > dataTemp(1), dataTemp(0), dataTemp(1))
+  io.dataOut := dataTempReg
   io.validOut := validDelay
 }
 
@@ -26,41 +33,30 @@ class MaxPool extends Module {
   val io = IO(new Bundle {
     // information regs
     val poolEn = Input(Bool())
-    // from pad
-    val fromPad = Flipped(new PaddingToPoolIO)
+    val outputSize = Input(UInt(8.W))
+    // clear
+    val writeComplete = Input(Bool())
     // accumulators
-    val validIn = Input(Bool())
-    val dataIn0 = Input(Vec(112, SInt(8.W)))
-    val dataIn1 = Input(Vec(112, SInt(8.W)))
-    val dataIn2 = Input(Vec(112, SInt(8.W)))
-    val dataIn3 = Input(Vec(112, SInt(8.W)))
+    val validIn = Input(Vec(112, Bool()))
+    val dataIn = Input(Vec(448, UInt(8.W)))
     // outputs
-    val dataOut = Output(SInt(8.W))
-    val validOut = Output(Bool())
+    val dataOut = Output(Vec(112, UInt(8.W)))
+    val poolComplete = Output(Bool())
   })
 
-  val maxComparator = Module(new MaxComparator)
+  val maxComparator = VecInit(Seq.fill(112)(Module(new MaxComparator).io))
+  val validOut = Wire(Vec(112, Bool()))
 
-  val realValid = RegInit(false.B)
-  val dataCount = RegInit(0.U(8.W))
-
-  when(io.poolEn && io.fromPad.finalInputChannel && io.validIn) {
-    realValid := true.B
-  } .elsewhen(io.fromPad.lineComplete) {
-    realValid := false.B
+  for(i <- 0 until 112) {
+    maxComparator(i).dataIn(0) := io.dataIn(i * 2)
+    maxComparator(i).dataIn(1) := io.dataIn(i * 2 + 1)
+    maxComparator(i).dataIn(2) := io.dataIn(i * 2 + 224)
+    maxComparator(i).dataIn(3) := io.dataIn(i * 2 + 225)
+    maxComparator(i).validIn := io.poolEn && io.validIn(i)
+    maxComparator(i).writeComplete := io.writeComplete
+    io.dataOut(i) := maxComparator(i).dataOut
+    validOut(i) := maxComparator(i).validOut 
   }
 
-  when(realValid) {
-    dataCount := dataCount + 1.U
-  } .otherwise {
-    dataCount := 0.U
-  }
-
-  maxComparator.io.validIn := realValid && !dataCount(0).toBool
-  maxComparator.io.dataIn(0) := io.dataIn0(dataCount(7, 1))
-  maxComparator.io.dataIn(1) := io.dataIn1(dataCount(7, 1))
-  maxComparator.io.dataIn(2) := io.dataIn2(dataCount(7, 1))
-  maxComparator.io.dataIn(3) := io.dataIn3(dataCount(7, 1))
-  io.dataOut := maxComparator.io.dataOut
-  io.validOut := maxComparator.io.validOut
+  io.poolComplete := io.poolEn && validOut(io.outputSize - 1.U)
 }

@@ -16,6 +16,8 @@ object Control {
   val REG_2  = 2.U(3.W)
   val REG_3  = 3.U(3.W)
   val REG_4  = 4.U(3.W)
+  val REG_5  = 5.U(3.W)
+  val REG_6  = 6.U(3.W)
   val REG_XXX = 7.U(3.W)
   // FSM enable
   val FSM_EN  = Y
@@ -34,12 +36,13 @@ object Control {
     YoloOutputAddr -> List(WR_EN,  REG_0,   FSM_NOT, RES_NOT,     N),
     YoloInputAddr  -> List(WR_EN,  REG_1,   FSM_NOT, RES_NOT,     N),
     YoloWeightAddr -> List(WR_EN,  REG_2,   FSM_NOT, RES_NOT,     N),
-    YoloInputInfo  -> List(WR_EN,  REG_3,   FSM_NOT, RES_NOT,     N),
-    YoloOutputInfo -> List(WR_EN,  REG_4,   FSM_NOT, RES_NOT,     N),
+    YoloBiasAddr   -> List(WR_EN,  REG_3,   FSM_NOT, RES_NOT,     N),
+    YoloBiasInfo   -> List(WR_EN,  REG_4,   FSM_NOT, RES_NOT,     N),
+    YoloInputInfo  -> List(WR_EN,  REG_5,   FSM_NOT, RES_NOT,     N),
+    YoloOutputInfo -> List(WR_EN,  REG_6,   FSM_NOT, RES_NOT,     N),
     YoloRegReset   -> List(WR_NOT, REG_XXX, FSM_NOT, RES_EN,      N),
     YoloFSMStart   -> List(WR_NOT, REG_XXX, FSM_EN,  RES_NOT,     N),
-    YoloNOP        -> List(WR_NOT, REG_XXX, FSM_NOT, RES_NOT,     N)
-  )
+    YoloNOP        -> List(WR_NOT, REG_XXX, FSM_NOT, RES_NOT,     N))
 }
 
 class DecoderToRegsIO extends Bundle {
