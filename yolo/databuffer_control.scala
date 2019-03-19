@@ -6,7 +6,8 @@ import chisel3.util._
 class DataBufferIO extends Bundle {
   // from ddr
   val ddrDataEn = Input(Bool())
-  val ddrComplete = Input(Bool())
+  val ddrDataComplete = Input(Bool())
+  // from store
   val ddrStoreEn = Input(Bool())
   // from writeback
   val writeValid = Input(Bool())
@@ -33,13 +34,13 @@ class DataBufferControl extends Module {
   val addressGenerator = RegInit(0.U(14.W))
   val bufferSelect = RegInit(false.B) 
 
-  when(io.ddrComplete || io.layerComplete) {
+  when(io.ddrDataComplete || io.layerComplete) {
     addressGenerator := 0.U
   } .elsewhen(io.ddrDataEn || io.ddrStoreEn || io.writeValid) {
     addressGenerator := addressGenerator + 1.U
   }
 
-  when(io.ddrComplete || io.layerComplete) {
+  when(io.ddrDataComplete || io.layerComplete) {
     bufferSelect := !bufferSelect
   }
 

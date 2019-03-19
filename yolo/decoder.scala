@@ -1,7 +1,7 @@
 package yolo
 
 import chisel3._
-import chisel3.util.ListLookup
+import chisel3.util._
 import chisel3.experimental._
 
 object Control {
@@ -65,14 +65,13 @@ class DecoderIO extends Bundle {
 class Decoder extends Module {
   val io = IO(new DecoderIO)
   val ctrlSignals = ListLookup(io.fifoPorts.dataOut, Control.default, Control.map)
-  val reset0 = RegNext(ctrlSignals(3))
-  val reset1 = RegNext(reset0)
+  val rstDelay = ShiftRegister(ctrlSignals(3), 5)
   val read = RegNext(!io.fifoPorts.empty)
 
   io.fifoPorts.readEn := read
   io.regsPorts.writeEn := ctrlSignals(0)
   io.regsPorts.regNum := ctrlSignals(1)
   io.fsmPorts.fsmStar := ctrlSignals(2)
-  io.systemRst := (reset0 & ~reset1).toBool
+  io.systemRst := ctrlSignals(3).toBool && !rstDelay
   io.illegal := ctrlSignals(4)
 }

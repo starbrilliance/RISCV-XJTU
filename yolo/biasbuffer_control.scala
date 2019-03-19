@@ -7,6 +7,7 @@ class BiasBufferControl extends Module {
     val ddrBiasEn = Input(Bool())
     val outputChannelEnd = Input(Bool())
     val ena = Output(Bool()) 
+    val wea = Output(Bool())
     val addra = Output(UInt(9.W))
     val douta = Input(UInt(256.W))
     val biasOut = Output(SInt(8.W))
@@ -36,13 +37,14 @@ class BiasBufferControl extends Module {
     count := count + 1.U
   }
 
-  when(io.ena) {
+  when(RegNext(clearEnDelay || readEnDelay)) {
     for(i <- 0 until 32) {
       biasTemp(i) := io.douta(i * 8 + 7, i * 8)
     }
   }
 
   io.ena := clearEnDelay || readEnDelay || io.ddrBiasEn
+  io.wea := io.ddrBiasEn
   io.addra := addressGenerator
   io.biasOut := biasTemp(count).asSInt
 }

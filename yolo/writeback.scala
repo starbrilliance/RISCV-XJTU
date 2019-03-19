@@ -19,13 +19,11 @@ class WriteBack extends Module {
   val actDataTemp1 = Wire(Vec(4, UInt(512.W)))
   val poolDataTemp = Wire(Vec(2, UInt(512.W)))
   val actOut = Wire(UInt(512.W))
-  val writeNum = Wire(UInt(3.W))
   val complete = Wire(Vec(2, Bool()))
   val valid = Wire(Vec(2, Bool()))
+  val writeNum = RegInit(7.U(3.W))
   val count = RegInit(VecInit(Seq.fill(2)(0.U(3.W))))
   val enable = RegInit(VecInit(Seq.fill(2)(false.B)))
-
-  writeNum := io.outputSize(7, 6) + io.outputSize(5, 0).orR.asUInt
 
   import Store._
   actDataTemp0(0) := concatenate(io.actData, 63)
@@ -38,6 +36,10 @@ class WriteBack extends Module {
   actDataTemp1(3) := concatenate(io.actData, 447, 416)
   poolDataTemp(0) := concatenate(io.poolData, 63)
   poolDataTemp(1) := concatenate(io.poolData, 111, 64)
+
+  when(io.writeStart) {
+    writeNum := io.outputSize(7, 6) + io.outputSize(5, 0).orR.asUInt
+  }
 
   when(io.writeStart) {
     enable(0) := true.B

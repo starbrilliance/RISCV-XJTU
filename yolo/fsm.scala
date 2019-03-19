@@ -4,10 +4,14 @@ import chisel3._
 import chisel3.util._
 
 class FsmDdrIO extends Bundle {
-  val ddrDataEn = Output(Bool())
-  val ddrWeightEn = Output(Bool())
-  val ddrBiasEn = Output(Bool())
-  val ddrComplete = Input(Bool())
+  val readDataEn = Output(Bool())
+  val readWeightEn = Output(Bool())
+  val readBiasEn = Output(Bool())
+  val writeDataEn = Output(Bool())
+  val readDataComplete = Input(Bool())
+  val readWeightComplete = Input(Bool())
+  val readBiasComplete = Input(Bool())
+  val writeDataComplete = Input(Bool())
   val infoComplete = Input(Bool())
 }
 
@@ -25,9 +29,7 @@ class FsmIO extends Bundle {
   // from regfiles
   val fromReg = Flipped(new RegfileToFsmIO)
   // to information
-  val toInfo = new FsmInfoIO
-  // to store
-  val ddrStoreEn = Output(Bool())
+  val toInfo = new FsmInfoIO  
   // is idle
   val isIdle = Output(Bool())
 }
@@ -56,17 +58,17 @@ class Fsm extends Module {
       }
     }
     is(readImage) {
-      when(io.fsmToDdr.ddrComplete) {  
+      when(io.fsmToDdr.readDataComplete) {  
         state := readWeight
       }
     }
     is(readWeight) {
-      when(io.fsmToDdr.ddrComplete) {  
+      when(io.fsmToDdr.readWeightComplete) {  
         state := readBias
       }
     }
     is(readBias) {
-      when(io.fsmToDdr.ddrComplete) {  
+      when(io.fsmToDdr.readBiasComplete) {  
         state := calculate
       }
     }
@@ -80,7 +82,7 @@ class Fsm extends Module {
       }
     }
     is(store) {
-      when(io.fsmToDdr.ddrComplete) {  
+      when(io.fsmToDdr.writeDataComplete) {  
         state := idle
       }
     }
@@ -100,11 +102,11 @@ class Fsm extends Module {
 
   io.isIdle := signals(0)
   io.toInfo.infoEn := signals(1)
-  io.fsmToDdr.ddrDataEn := signals(2)
-  io.fsmToDdr.ddrWeightEn := signals(3)
-  io.fsmToDdr.ddrBiasEn := signals(4)
+  io.fsmToDdr.readDataEn := signals(2)
+  io.fsmToDdr.readWeightEn := signals(3)
+  io.fsmToDdr.readBiasEn := signals(4)
   io.fsmToPad.padEn := signals(5)
-  io.ddrStoreEn := signals(6)
+  io.fsmToDdr.writeDataEn := signals(6)
 }
 
 object Fsm {
@@ -120,7 +122,7 @@ object Fsm {
   val N = false.B
 
   val default =
-    //               idle   infoEn  ddrDataEn  ddrWeightEn  ddrBiasEn  padEn  ddrStoreEn
+    //               idle   infoEn  readDataEn  readWeightEn  readBiasEn  padEn  writeDataEn
     //                |       |        |            |           |        |        |  
                 List( N,      N,       N,           N,          N,       N,       N  )
   val map = Array(

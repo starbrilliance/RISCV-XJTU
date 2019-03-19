@@ -20,7 +20,9 @@ class Top(simulation: Boolean = false) extends RawModule {
     val ddr_rst = Input(Bool())
     val clk_rst = Input(Bool())
     val sys_rst = Input(Bool())
+    val clk_valid = Output(Bool())
     // exception
+    val isRst = Output(Bool())
     val isIdle = Output(Bool())
     val instIllegal = Output(Bool())
     // ddr3 ports
@@ -31,7 +33,6 @@ class Top(simulation: Boolean = false) extends RawModule {
   val sys_clk = Wire(Clock())
   val ddr_clk_i = Wire(Clock()) // ddr
   val ref_clk_i = Wire(Clock()) // ddr
-  val decoder_rst = Wire(Bool())
   val read_buffer = Wire(UInt(512.W))
   val write_bufferA = Wire(UInt(512.W))
 
@@ -42,8 +43,9 @@ class Top(simulation: Boolean = false) extends RawModule {
   sys_clk := clockGen.io.sys_clk
   ddr_clk_i := clockGen.io.ddr_clk_i
   ref_clk_i := clockGen.io.ref_clk_i
+  io.clk_valid := clockGen.io.locked
 
-  withClockAndReset(sys_clk, io.sys_rst || decoder_rst) {
+  withClockAndReset(sys_clk, io.sys_rst || io.isRst) {
     val simulator = if(simulation) Some(Module(new Simulator)) else None
     val iFifo = Module(new Fifo(32, 4))
     val dFifo = Module(new Fifo(32, 4))
@@ -72,7 +74,7 @@ class Top(simulation: Boolean = false) extends RawModule {
       io.sim.get <> simulator.get.io.toTop
 
       simulator.get.io.init <> ddrFpga.io.init
-      simulator.get.io.simDDR <> ddrControl.io.simWrite.get
+      simulator.get.io.app <> ddrControl.io.sim.get
 
       iFifo.io.wr.dataIn := simulator.get.io.core_cmd_inst
       iFifo.io.wr.writeEn := simulator.get.io.core_cmd_valid
@@ -93,15 +95,15 @@ class Top(simulation: Boolean = false) extends RawModule {
     
     iFifo.io.rd <> decoder.io.fifoPorts
     iFifo.io.sys.readClk := sys_clk
-    iFifo.io.sys.systemRst := io.sys_rst || decoder_rst
+    iFifo.io.sys.systemRst := io.sys_rst || io.isRst
   
     dFifo.io.rd.readEn := decoder.io.fifoPorts.readEn
     dFifo.io.sys.readClk := sys_clk
-    dFifo.io.sys.systemRst := io.sys_rst || decoder_rst
+    dFifo.io.sys.systemRst := io.sys_rst || io.isRst
 
     decoder.io.regsPorts <> infoRegs.io.decoderPorts
     decoder.io.fsmPorts <> fsm.io.enable
-    decoder_rst :=  decoder.io.systemRst
+    io.isRst :=  decoder.io.systemRst
     io.instIllegal := decoder.io.illegal
 
     infoRegs.io.writeData := dFifo.io.rd.dataOut
@@ -127,10 +129,10 @@ class Top(simulation: Boolean = false) extends RawModule {
     ddrFpga.io.sys.rst := io.ddr_rst
     ddrFpga.io.clk_ref_i := ref_clk_i
     
-    write_bufferA := Mux(fsm.io.fsmToDdr.ddrDataEn, ddrControl.io.ddrToBuffer, writeback.io.dataOut)
+    write_bufferA := Mux(fsm.io.fsmToDdr.readDataEn, ddrControl.io.ddrToBuffer, writeback.io.dataOut)
     dataBufferA.io.clka := sys_clk
     dataBufferA.io.ena := dataBufferControl.io.writeEnA
-    dataBufferA.io.wea := false.B
+    dataBufferA.io.wea := dataBufferControl.io.writeEnA
     dataBufferA.io.addra := dataBufferControl.io.writeAddressA
     dataBufferA.io.dina := write_bufferA
     dataBufferA.io.clkb := sys_clk
@@ -139,7 +141,7 @@ class Top(simulation: Boolean = false) extends RawModule {
 
     dataBufferB.io.clka := sys_clk
     dataBufferB.io.ena := dataBufferControl.io.writeEnB
-    dataBufferB.io.wea := false.B
+    dataBufferB.io.wea := dataBufferControl.io.writeEnB
     dataBufferB.io.addra := dataBufferControl.io.writeAddressB
     dataBufferB.io.dina := writeback.io.dataOut
     dataBufferB.io.clkb := sys_clk
@@ -148,7 +150,7 @@ class Top(simulation: Boolean = false) extends RawModule {
 
     weightBuffer.io.clka := sys_clk
     weightBuffer.io.ena := weightBufferControl.io.writeEnW
-    weightBuffer.io.wea := false.B 
+    weightBuffer.io.wea := weightBufferControl.io.writeEnW 
     weightBuffer.io.addra := weightBufferControl.io.writeAddressW
     weightBuffer.io.dina := ddrControl.io.ddrToBuffer
     weightBuffer.io.clkb := sys_clk
@@ -157,22 +159,22 @@ class Top(simulation: Boolean = false) extends RawModule {
 
     biasBuffer.io.clka := sys_clk
     biasBuffer.io.ena := biasBufferControl.io.ena
-    biasBuffer.io.wea := false.B 
+    biasBuffer.io.wea := biasBufferControl.io.wea
     biasBuffer.io.addra := biasBufferControl.io.addra
     biasBuffer.io.dina := ddrControl.io.ddrToBuffer
     
-    dataBufferControl.io.ddrDataEn := fsm.io.fsmToDdr.ddrDataEn
-    dataBufferControl.io.ddrComplete := ddrControl.io.ddrToFsm.ddrComplete
-    dataBufferControl.io.ddrStoreEn := fsm.io.ddrStoreEn
+    dataBufferControl.io.ddrDataEn := ddrControl.io.dataBufferEn
+    dataBufferControl.io.ddrDataComplete := ddrControl.io.ddrToFsm.readDataComplete
+    dataBufferControl.io.ddrStoreEn := store.io.readEn
     dataBufferControl.io.writeValid := writeback.io.validOut
     dataBufferControl.io.padReadEn := pad.io.databufferToPadding.en
     dataBufferControl.io.padReadAddress := pad.io.databufferToPadding.addr
     dataBufferControl.io.layerComplete := pad.io.fsmToPadding.layerComplete
 
-    weightBufferControl.io.ddrWeightEn := fsm.io.fsmToDdr.ddrWeightEn
+    weightBufferControl.io.ddrWeightEn := ddrControl.io.weightBufferEn
     weightBufferControl.io.padToWB <> pad.io.paddingToDdrcontrol
 
-    biasBufferControl.io.ddrBiasEn := fsm.io.fsmToDdr.ddrBiasEn
+    biasBufferControl.io.ddrBiasEn := ddrControl.io.biasBufferEn
     biasBufferControl.io.outputChannelEnd := pad.io.outputChannelEnd
     biasBufferControl.io.douta := biasBuffer.io.douta
   
@@ -187,6 +189,7 @@ class Top(simulation: Boolean = false) extends RawModule {
 
     pe.io.biasIn := biasBufferControl.io.biasOut
     pe.io.kernelSize := infoRegs.io.toInfo.readData(6)(20)
+    pe.io.firstLayer := infoRegs.io.toFsm.firstLayer
     pe.io.validIn := shiftRegs.io.srToPadding.shift    
 
     active.io.finalInputChannel := pad.io.paddingToPe.finalInputChannel
@@ -211,7 +214,9 @@ class Top(simulation: Boolean = false) extends RawModule {
     writeback.io.outputSize := infoRegs.io.toInfo.readData(6)(18, 11)   
 
     read_buffer := Mux(dataBufferControl.io.readEnA, dataBufferA.io.doutb, dataBufferB.io.doutb)
-    store.io.ddrStoreEn := fsm.io.ddrStoreEn
+    store.io.ddrStoreEn := fsm.io.fsmToDdr.writeDataEn
     store.io.dataIn := read_buffer(55, 0)
+    store.io.ddrWriteRdy := ddrFpga.io.app.wdf_rdy
+    store.io.ddrRdy := ddrFpga.io.app.rdy
   }
 }

@@ -32,6 +32,6 @@ class Regfile extends Module {
   }
   
   io.toInfo.readData := dataRegs
-  io.toFsm.firstLayer := dataRegs(6)(23)
-  io.toFsm.finalLayer := dataRegs(6)(24)
+  io.toFsm.firstLayer := dataRegs(6)(22)
+  io.toFsm.finalLayer := dataRegs(6)(23)
 }

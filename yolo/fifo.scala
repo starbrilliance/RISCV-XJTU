@@ -24,6 +24,7 @@ class SystemIO extends Bundle {
   val systemRst = Input(Bool())
 }
 
+@chiselName
 class Fifo(width: Int, depth: Int) extends RawModule {
   val io = IO(new Bundle {
     val wr = new FifoToRoccIO(width)

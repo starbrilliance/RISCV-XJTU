@@ -15,13 +15,13 @@ class Active extends Module {
     val activeComplete = Output(Bool()) 
     // from accumulators
     val validIn = Input(Vec(224, Bool()))
-    val dataIn = Input(Vec(448, SInt(31.W)))
+    val dataIn = Input(Vec(448, SInt(32.W)))
     // output
     val dataOut = Output(Vec(448, UInt(8.W)))
     val validOut = Output(Vec(224, Bool()))
   })
 
-  val dataTemp = RegInit(VecInit(Seq.fill(448)(0.S(31.W))))
+  val dataTemp = RegInit(VecInit(Seq.fill(448)(0.S(32.W))))
   val dataOutTemp = Wire(Vec(448, UInt(8.W)))
   val dataOutReg = RegNext(dataOutTemp)
   val validOutReg = Reg(Vec(224, Bool()))
