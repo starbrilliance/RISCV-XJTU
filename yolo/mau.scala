@@ -9,19 +9,20 @@ class MulAddUnit extends Module {
     val weightIn = Input(Vec(9, SInt(8.W)))
     val biasIn = Input(SInt(8.W))
     val kernelSize = Input(UInt(1.W))
+    val firstLayer = Input(Bool())
     val validIn = Input(Bool())
-    val dataOut = Output(SInt(21.W))
+    val dataOut = Output(SInt(22.W))
     val validOut = Output(Bool()) 
   })
 
-  val mul = VecInit(Seq.fill(9)(Module(new SIntEightMEight).io))
-  val add0 = VecInit(Seq.fill(4)(Module(new SIntSixteenASixteen).io))
-  val add1 = VecInit(Seq.fill(2)(Module(new SIntSeventeenASeventeen).io))
-  val add2 = Module(new SIntEighteenAEighteen)
-  val add3 = Module(new SIntNineteenASixteen)
-  val add4 = Module(new SIntSixteenAEight)
-  val add5 = Module(new SIntTwentyAEight)
-  val fifo = Module(new Fifo(16, 4))
+  val mul = VecInit(Seq.fill(9)(Module(new SIntNineMEight).io))
+  val add0 = VecInit(Seq.fill(4)(Module(new SIntSeventeenASeventeen).io))
+  val add1 = VecInit(Seq.fill(2)(Module(new SIntEighteenAEighteen).io))
+  val add2 = Module(new SIntNineteenANineteen)
+  val add3 = Module(new SIntTwentyASeventeen)
+  val add4 = Module(new SIntSeventeenAEight)
+  val add5 = Module(new SIntTwentyOneAEight)
+  val fifo = Module(new Fifo(17, 4))
   val add0Valid = RegNext(io.validIn)
   val add1Valid = RegNext(RegNext(add0Valid))
   val add2Valid = RegNext(RegNext(add1Valid))
@@ -30,10 +31,15 @@ class MulAddUnit extends Module {
   val add5Valid = RegNext(RegNext(add3Valid1))
   val validOutDelay0 = RegNext(RegNext(add0Valid))
   val validOutDelay1 = RegNext(RegNext(add5Valid))
+  val dataInTemp = Wire(Vec(9, SInt(9.W)))
+
+  for(i <- 0 until 9) {
+    dataInTemp(i) := Mux(io.firstLayer, Cat(0.U, io.dataIn(i)), Cat(io.dataIn(i)(7), io.dataIn(i))).asSInt
+  }
 
   for(i <- 0 until 9) {
     mul(i).CLK := clock
-    mul(i).A := io.dataIn(i)
+    mul(i).A := dataInTemp(i)
     mul(i).B := io.weightIn(i)
     mul(i).CE := io.validIn
   }

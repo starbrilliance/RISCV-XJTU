@@ -11,8 +11,14 @@ class StoreToDdrCIO extends Bundle {
 
 class Store extends Module {
   val io = IO(new Bundle {
+    // from fsm
     val ddrStoreEn = Input(Bool())
+    // from data buffer
     val dataIn = Input(UInt(56.W))
+    val readEn = Output(Bool())
+    // from ddrC
+    val ddrWriteRdy = Input(Bool())
+    val ddrRdy = Input(Bool())
     // to ddrC
     val toDdrC = new StoreToDdrCIO
   })
@@ -22,6 +28,8 @@ class Store extends Module {
   val count0 = RegInit(0.U(6.W))
   val count1 = RegInit(0.U(3.W))
   val ddrDelay = RegNext(io.ddrStoreEn)
+  val count0Valid = Wire(Bool())
+  val countStop = Wire(Bool())
 
   import Store._
 
@@ -33,24 +41,27 @@ class Store extends Module {
   dataTemp1(5) := Cat(dataTemp0(54)(47, 0), concatenate(dataTemp0, 53, 46), dataTemp0(45)(55, 40))
   dataTemp1(6) := Cat(concatenate(dataTemp0, 63, 55), dataTemp0(54)(55, 48))
 
-  when(io.ddrStoreEn) {
+  when(ddrDelay && !countStop) {
     count0 := count0 + 1.U
     dataTemp0(count0) := io.dataIn
   }
 
-  when(io.toDdrC.storeValid) {
+  when(io.toDdrC.storeValid && !countStop) {
     count1 := Mux(count1 === 6.U, 0.U, count1 + 1.U)
   }
 
-  io.toDdrC.storeValid := ddrDelay && ((count0 === 0.U) ||
-                                (count0 === 10.U) ||
-                                (count0 === 19.U) ||
-                                (count0 === 28.U) ||
-                                (count0 === 37.U) ||
-                                (count0 === 46.U) ||
-                                (count0 === 55.U))
+  count0Valid := ((count0 === 10.U) || (count0 === 19.U) || 
+                 (count0 === 28.U) || (count0 === 37.U) || 
+                 (count0 === 46.U) || (count0 === 55.U) ||
+                 (count0 === 0.U)) && RegNext(ddrDelay)
 
-  io.toDdrC.dataOut := dataTemp1(count1)
+  countStop := (!io.ddrWriteRdy || !io.ddrRdy) && count0Valid
+
+  io.readEn := io.ddrStoreEn && !countStop          
+
+  io.toDdrC.storeValid := RegNext(count0Valid) && (!io.ddrWriteRdy || io.ddrRdy && !count0Valid)
+
+  io.toDdrC.dataOut := RegNext(dataTemp1(count1))
 }
 
 object Store {

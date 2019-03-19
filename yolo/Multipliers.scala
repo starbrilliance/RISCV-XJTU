@@ -58,14 +58,14 @@ class SeventeenMEleven extends BlackBox {
   })
 }
 
-// 8bits × 8bits SInt
-class SIntEightMEight extends BlackBox {
+// 9bits × 8bits SInt  第一层RGB数据是无符号数，中间层是有符号数
+class SIntNineMEight extends BlackBox {
   val io = IO(new Bundle {
     val CLK = Input(Clock())  // input wire CLK
-    val A = Input(SInt(8.W))  // input wire [7 : 0] A
+    val A = Input(SInt(9.W))  // input wire [8 : 0] A
     val B = Input(SInt(8.W))  // input wire [7 : 0] B
     val CE = Input(Bool())    // input wire CE
-    val P = Output(SInt(16.W)) // output wire [15 : 0] P  
+    val P = Output(SInt(17.W)) // output wire [16 : 0] P  
   })
 }
 

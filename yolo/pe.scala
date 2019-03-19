@@ -10,8 +10,9 @@ class PE extends Module {
     val fromPad = Flipped(new PaddingToPeIO) // weight & clear
     val biasIn = Input(SInt(8.W))  // bias
     val kernelSize = Input(UInt(1.W))
+    val firstLayer = Input(Bool())
     val validIn = Input(Bool())
-    val dataOut = Output(Vec(448, SInt(31.W)))
+    val dataOut = Output(Vec(448, SInt(32.W)))
     val validOut = Output(Vec(224, Bool()))
   })
 
@@ -31,6 +32,7 @@ class PE extends Module {
   for(i <- 0 until 2) {
     maus(i).biasIn := io.biasIn
     maus(i).kernelSize := io.kernelSize
+    maus(i).firstLayer := io.firstLayer
     maus(i).validIn := io.validIn
   }
 
