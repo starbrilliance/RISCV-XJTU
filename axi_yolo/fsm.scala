@@ -21,7 +21,7 @@ class FsmInfoIO extends Bundle {
 
 class FsmIO extends Bundle {
   // from decoder
-  val enable = Flipped(new DecoderToFsmIO)
+  val fromDecoder = Flipped(new DecoderToFsmIO)
   // fsm <> ddrC
   val fsmToDdr = new FsmDdrIO
   // calculate
@@ -29,9 +29,11 @@ class FsmIO extends Bundle {
   // from regfiles
   val fromReg = Flipped(new RegfileToFsmIO)
   // to information
-  val toInfo = new FsmInfoIO  
+  val toInfo = new FsmInfoIO 
   // is idle
   val isIdle = Output(Bool())
+  // from balance
+  val realLayerEnd = Input(Bool()) 
 }
 
 class Fsm extends Module {
@@ -44,7 +46,7 @@ class Fsm extends Module {
 
   switch(state) {
     is(idle) {
-      when(io.enable.fsmStar) {  
+      when(io.fromDecoder.fsmStar) {  
         state := info
       }
     }
@@ -64,7 +66,11 @@ class Fsm extends Module {
     }
     is(readWeight) {
       when(io.fsmToDdr.readWeightComplete) {  
-        state := readBias
+        when(io.fromDecoder.biasEn) {
+          state := readBias
+        } .otherwise {
+          state := calculate
+        }
       }
     }
     is(readBias) {
@@ -73,7 +79,7 @@ class Fsm extends Module {
       }
     }
     is(calculate) {
-      when(io.fsmToPad.layerComplete) {
+      when(io.realLayerEnd) {
         when(io.fromReg.finalLayer) {
           state := store
         } .otherwise {

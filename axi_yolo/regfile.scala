@@ -17,7 +17,7 @@ class Regfile extends Module {
     // from dataFIFO
     val writeData = Input(UInt(32.W))
     // condition
-    val layerComplete = Input(Bool())
+    val realLayerEnd = Input(Bool())
     // outputs
     val toInfo = new RegfileToInfoIO
     val toFsm = new RegfileToFsmIO
@@ -27,11 +27,11 @@ class Regfile extends Module {
 
   when(io.decoderPorts.writeEn) {
     dataRegs(io.decoderPorts.regNum) := io.writeData
-  } .elsewhen(io.layerComplete) {
-    dataRegs(5) := dataRegs(6)(18, 0)
+  } .elsewhen(io.realLayerEnd) {
+    dataRegs(5) := dataRegs(6)(19, 0)
   }
   
   io.toInfo.readData := dataRegs
-  io.toFsm.firstLayer := dataRegs(6)(22)
-  io.toFsm.finalLayer := dataRegs(6)(23)
+  io.toFsm.firstLayer := dataRegs(6)(25)
+  io.toFsm.finalLayer := dataRegs(6)(26)
 }

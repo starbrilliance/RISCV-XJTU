@@ -48,17 +48,6 @@ class SIntTwentyASeventeen extends BlackBox {
   })
 }
 
-// 17bits + 8bits SInt
-class SIntSeventeenAEight extends BlackBox {
-  val io = IO(new Bundle {
-    val A = Input(SInt(17.W))   // input wire [16 : 0] A
-    val B = Input(SInt(8.W))    // input wire [7 : 0] B
-    val CLK = Input(Clock())    // input wire CLK
-    val CE = Input(Bool())      // input wire CE
-    val S = Output(SInt(18.W))  // output wire [17 : 0] S  
-  })
-}
-
 // 21bits + 8bits SInt
 class SIntTwentyOneAEight extends BlackBox {
   val io = IO(new Bundle {

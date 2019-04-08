@@ -5,15 +5,12 @@ import chisel3.util._
 
 class Active extends Module {
   val io = IO(new Bundle {
-    // from pad
-    val finalInputChannel = Input(Bool())
     // clear
     val writeComplete = Input(Bool())
     // complete
-    val poolEn = Input(Bool())
-    val outputSize = Input(UInt(8.W))
+    val realLineEnd = Input(Bool())
     val activeComplete = Output(Bool()) 
-    // from accumulators
+    // from pe
     val validIn = Input(Vec(224, Bool()))
     val dataIn = Input(Vec(448, SInt(32.W)))
     // output
@@ -24,17 +21,12 @@ class Active extends Module {
   val dataTemp = RegInit(VecInit(Seq.fill(448)(0.S(32.W))))
   val dataOutTemp = Wire(Vec(448, UInt(8.W)))
   val dataOutReg = RegNext(dataOutTemp)
-  val validOutReg = Reg(Vec(224, Bool()))
-
-  for(i <- 0 until 224) {
-    validOutReg(i) := RegNext(io.validIn(i) && io.finalInputChannel)
-  }
 
   for(i <- 0 until 224) {
     when(io.writeComplete) {
       dataTemp(i) := 0.S
       dataTemp(i + 224) := 0.S
-    } .elsewhen(io.finalInputChannel && io.validIn(i)) {
+    } .elsewhen(io.validIn(i)) {
       dataTemp(i) := io.dataIn(i)
       dataTemp(i + 224) := io.dataIn(i + 224)
     }
@@ -45,6 +37,6 @@ class Active extends Module {
   }
   
   io.dataOut := dataOutReg
-  io.validOut := validOutReg
-  io.activeComplete := !io.poolEn && validOutReg(io.outputSize - 1.U)
+  io.validOut := RegNext(RegNext(io.validIn))
+  io.activeComplete := RegNext(RegNext(io.realLineEnd))
 }

@@ -14,8 +14,8 @@ class DataBufferIO extends Bundle {
   // from pad
   val padReadEn = Input(Bool())
   val padReadAddress = Input(UInt(14.W))
-  // from sr
-  val layerComplete = Input(Bool())
+  // from balance
+  val realLayerEnd = Input(Bool())
   // to databufferA
   val readAddressA = Output(UInt(14.W))
   val readEnA = Output(Bool())
@@ -34,13 +34,13 @@ class DataBufferControl extends Module {
   val addressGenerator = RegInit(0.U(14.W))
   val bufferSelect = RegInit(false.B) 
 
-  when(io.ddrDataComplete || io.layerComplete) {
+  when(io.ddrDataComplete || io.realLayerEnd) {
     addressGenerator := 0.U
   } .elsewhen(io.ddrDataEn || io.ddrStoreEn || io.writeValid) {
     addressGenerator := addressGenerator + 1.U
   }
 
-  when(io.ddrDataComplete || io.layerComplete) {
+  when(io.ddrDataComplete || io.realLayerEnd) {
     bufferSelect := !bufferSelect
   }
 

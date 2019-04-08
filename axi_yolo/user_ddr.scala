@@ -18,55 +18,6 @@ object AXI4Parameters {
 
 import AXI4Parameters._
 
-class HasAXI4IO extends Bundle {
-  //slave interface write address ports
-  val awid = Input(UInt(C_S_AXI_ID_WIDTH.W))
-  val awaddr = Input(UInt(C_S_AXI_ADDR_WIDTH.W))
-  val awlen = Input(UInt(8.W))
-  val awsize = Input(UInt(3.W))
-  val awburst = Input(UInt(2.W))
-  val awlock = Input(Bool())
-  val awcache = Input(UInt(4.W))
-  val awprot = Input(UInt(3.W))
-  val awqos = Input(UInt(4.W))
-  val awvalid = Input(Bool())
-  val awready = Output(Bool())
-  
-  //slave interface write data ports
-  val wdata = Input(UInt(C_S_AXI_DATA_WIDTH.W))
-  val wstrb = Input(UInt((C_S_AXI_DATA_WIDTH/8).W))
-  val wlast = Input(Bool())
-  val wvalid = Input(Bool())
-  val wready = Output(Bool())
-
-  //slave interface write response ports
-  val bid = Output(UInt(C_S_AXI_ID_WIDTH.W))
-  val bresp = Output(UInt(2.W))
-  val bvalid = Output(Bool())
-  val bready = Input(Bool())
-
-  //slave interface read address ports
-  val arid = Input(UInt(C_S_AXI_ID_WIDTH.W))
-  val araddr = Input(UInt(C_S_AXI_ADDR_WIDTH.W))
-  val arlen = Input(UInt(8.W))
-  val arsize = Input(UInt(3.W))
-  val arburst = Input(UInt(2.W))
-  val arlock = Input(Bool())
-  val arcache = Input(UInt(4.W))
-  val arprot = Input(UInt(3.W))
-  val arqos = Input(UInt(4.W))
-  val arvalid = Input(Bool())
-  val arready = Output(Bool())
-
-  //slave interface read data ports
-  val rid = Output(UInt(C_S_AXI_ID_WIDTH.W))
-  val rdata = Output(UInt(C_S_AXI_DATA_WIDTH.W))
-  val rresp = Output(UInt(2.W))
-  val rlast = Output(Bool())
-  val rvalid = Output(Bool())
-  val rready = Input(Bool())
-}
-
 class AXI4CMDIO extends Bundle { 
   // User interface command port
   val cmd_en = Input(Bool())    // Asserted to indicate a valid command and address
@@ -128,4 +79,61 @@ class axi4_wrapper extends BlackBox(Map("C_AXI_ID_WIDTH" -> C_S_AXI_ID_WIDTH,
   val io = IO(new AXI4WrapperIO)
 
   setResource("/axi_wrapper.v")
+}
+
+// using AXI4 ports rather than ddr3 fpga ports when integrated into system
+class DdrUserControlIO extends AXI4CMDIO {
+  val aclk = Output(Clock())     // using ui_clk of the ddr_interface
+  val aresetn = Output(Bool())   // using aresetn of the ddr_interface
+  val wrdata = new AXI4WriteIO  // user write data ports 
+  val rddata = new AXI4ReadIO   // user read data ports
+  val clk_ref_i = Input(Clock())  // referential clock 200MHz
+  val ddr3 = new HasDdrFpgaIO   // ddr3 fpga ports
+  val sys = new HasDdrSystemIO  // system clk and rst
+  val init = new HasCalibPort   // calibration  
+}
+
+class DdrUserControlModule extends RawModule {
+  val io = IO(new DdrUserControlIO)
+
+  val xilinxMIG = Module(new DdrInterface)
+  val axi4Wrapper = Module(new axi4_wrapper)
+
+  val app_sr_active = Wire(Bool())
+  val app_ref_ack = Wire(Bool())
+  val app_zq_ack = Wire(Bool())
+  val mmcm_locked = Wire(Bool())
+  val nothing = Wire(Bool())
+  nothing := DontCare
+  val axi_reset = withClockAndReset(xilinxMIG.io.ui_clk, nothing) {
+    RegNext(~xilinxMIG.io.ui_clk_sync_rst)
+  }
+
+  io.ddr3 <> xilinxMIG.io.ddr3
+  io.sys <> xilinxMIG.io.sys
+  io.init <> xilinxMIG.io.init
+  io.aclk := xilinxMIG.io.ui_clk
+  io.aresetn := axi_reset
+  io.cmd_ack := axi4Wrapper.io.cmd_ack
+  xilinxMIG.io.clk_ref_i := io.clk_ref_i
+  xilinxMIG.io.app.sr_req := false.B
+  xilinxMIG.io.app.ref_req := false.B
+  xilinxMIG.io.app.zq_req := false.B
+  xilinxMIG.io.aresetn := axi_reset
+  app_sr_active := xilinxMIG.io.app.sr_active
+  app_ref_ack := xilinxMIG.io.app.ref_ack
+  app_zq_ack := xilinxMIG.io.app.zq_ack
+  mmcm_locked := xilinxMIG.io.mmcm_locked
+
+  axi4Wrapper.io.cmd_en := io.cmd_en
+  axi4Wrapper.io.cmd := io.cmd
+  axi4Wrapper.io.blen := io.blen
+  axi4Wrapper.io.addr := io.addr
+  axi4Wrapper.io.aclk := xilinxMIG.io.ui_clk
+  axi4Wrapper.io.aresetn := axi_reset
+  axi4Wrapper.io.ctl := 6.U
+  axi4Wrapper.io.wdog_mask := ~xilinxMIG.io.init.calib_complete
+  axi4Wrapper.io.wrdata <> io.wrdata
+  axi4Wrapper.io.rddata <> io.rddata
+  axi4Wrapper.io.axi <> xilinxMIG.io.s_axi 
 }

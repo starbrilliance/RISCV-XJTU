@@ -28,8 +28,8 @@ class Information extends Module {
 
   // 3 * 3
   threeMThree.io.CLK := clock
-  threeMThree.io.A := io.fromRegfile.readData(6)(21, 19)
-  threeMThree.io.B := io.fromRegfile.readData(6)(21, 19)
+  threeMThree.io.A := io.fromRegfile.readData(6)(22, 20)
+  threeMThree.io.B := io.fromRegfile.readData(6)(22, 20)
   threeMThree.io.CE := io.fromFsm.infoEn
   validDelay(0) := io.fromFsm.infoEn
 
@@ -49,13 +49,13 @@ class Information extends Module {
 
   // 8 * 8
   eightMEight(0).CLK := clock
-  eightMEight(0).A := io.fromRegfile.readData(5)(18, 11)
-  eightMEight(0).B := io.fromRegfile.readData(5)(18, 11)
+  eightMEight(0).A := io.fromRegfile.readData(5)(19, 12)
+  eightMEight(0).B := io.fromRegfile.readData(5)(19, 12)
   eightMEight(0).CE := io.fromFsm.infoEn
 
   eightMEight(1).CLK := clock
-  eightMEight(1).A := io.fromRegfile.readData(6)(18, 11)
-  eightMEight(1).B := io.fromRegfile.readData(6)(18, 11)
+  eightMEight(1).A := io.fromRegfile.readData(6)(19, 12)
+  eightMEight(1).B := io.fromRegfile.readData(6)(19, 12)
   eightMEight(1).CE := io.fromFsm.infoEn
   
   // 16 * 11

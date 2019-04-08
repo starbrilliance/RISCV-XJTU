@@ -8,7 +8,8 @@ class MulAddUnit extends Module {
     val dataIn = Input(Vec(9, SInt(8.W)))
     val weightIn = Input(Vec(9, SInt(8.W)))
     val biasIn = Input(SInt(8.W))
-    val kernelSize = Input(UInt(1.W))
+    val kernelSize = Input(Bool())
+    val biasSelect = Input(Bool())
     val firstLayer = Input(Bool())
     val validIn = Input(Bool())
     val dataOut = Output(SInt(22.W))
@@ -20,18 +21,20 @@ class MulAddUnit extends Module {
   val add1 = VecInit(Seq.fill(2)(Module(new SIntEighteenAEighteen).io))
   val add2 = Module(new SIntNineteenANineteen)
   val add3 = Module(new SIntTwentyASeventeen)
-  val add4 = Module(new SIntSeventeenAEight)
-  val add5 = Module(new SIntTwentyOneAEight)
+  val add4 = Module(new SIntTwentyOneAEight)
   val fifo = Module(new Fifo(17, 4))
-  val add0Valid = RegNext(io.validIn)
+  val add0ValidTemp0 = RegNext(io.validIn)
+  val add0ValidTemp1 = RegNext(add0ValidTemp0)
+  val add0Valid = add0ValidTemp0 || add0ValidTemp1 
   val add1Valid = RegNext(RegNext(add0Valid))
   val add2Valid = RegNext(RegNext(add1Valid))
   val add3Valid0 = RegNext(add2Valid)
   val add3Valid1 = RegNext(add3Valid0)
-  val add5Valid = RegNext(RegNext(add3Valid1))
-  val validOutDelay0 = RegNext(RegNext(add0Valid))
-  val validOutDelay1 = RegNext(RegNext(add5Valid))
+  val add4Valid0 = RegNext(RegNext(add3Valid1)) 
   val dataInTemp = Wire(Vec(9, SInt(9.W)))
+  val biasTemp = Wire(SInt(8.W))
+  val add4ATemp = Wire(SInt(21.W))
+  val add4CE = Wire(Bool())
 
   for(i <- 0 until 9) {
     dataInTemp(i) := Mux(io.firstLayer, Cat(0.U, io.dataIn(i)), Cat(io.dataIn(i)(7), io.dataIn(i))).asSInt
@@ -75,16 +78,14 @@ class MulAddUnit extends Module {
   add3.io.B := fifo.io.rd.dataOut.asSInt
   add3.io.CE := add3Valid1
 
+  add4ATemp := Mux(io.kernelSize, add3.io.S, mul(4).P)
+  add4CE := Mux(io.kernelSize, add4Valid0, add0Valid) 
+  biasTemp := Mux(io.biasSelect, io.biasIn, 0.S)
   add4.io.CLK := clock
-  add4.io.A := mul(0).P
-  add4.io.B := io.biasIn
-  add4.io.CE := add0Valid
+  add4.io.A := add4ATemp
+  add4.io.B := biasTemp
+  add4.io.CE := add4CE
 
-  add5.io.CLK := clock
-  add5.io.A := add3.io.S
-  add5.io.B := io.biasIn
-  add5.io.CE := add5Valid
-
-  io.dataOut := Mux(io.kernelSize.toBool, add5.io.S, add4.io.S)
-  io.validOut := Mux(io.kernelSize.toBool, validOutDelay1, validOutDelay0)                                                    
+  io.dataOut := add4.io.S
+  io.validOut := RegNext(RegNext(add4CE))                                                    
 }

@@ -7,9 +7,9 @@ import chisel3.experimental._
 class PE extends Module {
   val io = IO(new Bundle {
     val fromSr = Flipped(new SrToPeIO)  // data
-    val fromPad = Flipped(new PaddingToPeIO) // weight & clear
+    val fromPad = Flipped(new PaddingToPeIO) // weight
+    val fromBalance = Flipped(new BalanceToPEIO) // control
     val biasIn = Input(SInt(8.W))  // bias
-    val kernelSize = Input(UInt(1.W))
     val firstLayer = Input(Bool())
     val validIn = Input(Bool())
     val dataOut = Output(Vec(448, SInt(32.W)))
@@ -21,8 +21,7 @@ class PE extends Module {
   val accCount = RegInit(0.U(8.W))
   val accDecode = Wire(UInt(224.W))
   val accValid = Wire(Bool())
-  val accValidDelay = Reg(Vec(224, Bool()))
-
+  
   for(i <- 0 until 9) {
     maus(0).dataIn(i) := io.fromSr.dataout1(i)
     maus(0).weightIn(i) := io.fromPad.weight(i)
@@ -31,7 +30,8 @@ class PE extends Module {
   }
   for(i <- 0 until 2) {
     maus(i).biasIn := io.biasIn
-    maus(i).kernelSize := io.kernelSize
+    maus(i).kernelSize := io.fromBalance.kernelSize
+    maus(i).biasSelect := io.fromBalance.biasSelect
     maus(i).firstLayer := io.firstLayer
     maus(i).validIn := io.validIn
   }
@@ -39,11 +39,9 @@ class PE extends Module {
   accValid := maus(0).validOut
 
   when(accValid) {
-    when(accCount === 223.U) {
-      accCount := 0.U
-    } .otherwise {
-      accCount := accCount + 1.U
-    }
+    accCount := accCount + 1.U
+  } .otherwise {
+    accCount := 0.U
   }
 
   val x = for(i <- 0 until 224)
@@ -58,11 +56,10 @@ class PE extends Module {
     for(j <- 0 until 224) {
       accs(i * 224 + j).B := maus(i).dataOut
       accs(i * 224 + j).CLK := clock
-      accs(i * 224 + j).CE := accDecode(j).toBool && accValid
-      accs(i * 224 + j).SCLR := reset.toBool || (io.fromPad.finalInputChannel && io.fromPad.lineComplete)
+      accs(i * 224 + j).CE := accDecode(j).toBool && accValid || io.fromBalance.accRead && RegNext(accDecode(j).toBool && accValid)
+      accs(i * 224 + j).SCLR := reset.toBool || io.fromBalance.accClear
       io.dataOut(i * 224 + j) := accs(i * 224 + j).Q
-      accValidDelay(j) := RegNext(RegNext(accDecode(j).toBool && accValid))
-      io.validOut(j) := accValidDelay(j)
+      io.validOut(j) := RegNext(io.fromBalance.accRead && RegNext(accDecode(j).toBool && accValid))
     }
   }
 }

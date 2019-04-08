@@ -17,13 +17,10 @@ class PaddingToDdrControlIO extends Bundle {
 
 class PaddingToPeIO extends Bundle {
   val weight = Output(Vec(9, SInt(8.W)))
-  val finalInputChannel = Output(Bool())
-  val lineComplete = Output(Bool())
 }
 
 class FsmToPaddingIO extends Bundle {
   val padEn = Input(Bool())
-  val layerComplete = Output(Bool())
 }
 
 class WeightbuffertoPaddingIO extends Bundle {
@@ -38,6 +35,13 @@ class DatabufferToPaddingIO extends Bundle {
   val datain = Input(Vec(64, UInt(8.W)))
 }
 
+class PaddingToBalanceIO extends Bundle {
+  val finalInputChannel = Output(Bool())
+  val lineComplete = Output(Bool())
+  val layerComplete = Output(Bool())
+  val outputChannelEnd = Output(Bool())
+}
+
 class Padding extends Module {
   val io =IO(new Bundle {
     val paddingToPe = new PaddingToPeIO
@@ -47,8 +51,10 @@ class Padding extends Module {
     val fsmToPadding = new FsmToPaddingIO
     val informationToPadding = new InformationToPaddingIO
     val paddingToDdrcontrol = new PaddingToDdrControlIO
-    val outputChannelEnd =Output(Bool())      
+    val paddingToBalance = new PaddingToBalanceIO      
   })
+    val mul816 = Module(new EightMSixteen)
+     val mul88 = VecInit(Seq.fill(3)(Module(new EightMEight).io))
      val mul11 = Module(new ElevenMEleven)
      val mul214 = VecInit(Seq.fill(2)(Module(new TwentyoneMFour).io)) 
      val paddingValid = Wire(Bool())
@@ -56,13 +62,15 @@ class Padding extends Module {
      val weightReg2 = Reg(Vec(9, SInt(8.W)))
      val addrBias = RegInit(0.U(32.W))
      val addrBiasCurrent = RegInit(0.U(32.W))
+     val fladdr = RegInit(0.U(14.W))
+     val fladdr1 = RegInit(0.U(14.W))
      val dataAddr = RegInit(0.U(14.W))
      val datainSize = RegInit(0.U(32.W))   //datainsize to show how big the picture is
      val datainChannel = RegInit(0.U(11.W))  // to show how many input channel is
      val dataoutSize = RegInit(0.U(32.W))
      val dataoutChannel = RegInit(0.U(11.W))
      val weightSize = RegInit(0.U(32.W))
-     val vitualAddr = RegInit(0.U(32.W))
+     val vitualAddr = Wire(UInt(32.W))
      val w_f = RegInit(false.B)
      val d = RegInit(false.B)
      val e = RegInit(true.B)
@@ -82,10 +90,22 @@ class Padding extends Module {
      val s4 = RegInit(0.U(8.W))
      val s5 = RegInit(0.U(8.W)) 
      val signal1 = Wire(Bool())
+     val signal2 = Wire(Bool())
      val a = RegInit(0.U(8.W))
      val b = RegInit(0.U(8.W))
-     val c = RegInit(0.U(8.W))    
+     val c = RegInit(0.U(8.W)) 
+     val c1 = RegNext(c)
+     val c2 = RegNext(c1)  
+     val fl1_1 = RegInit(0.U(8.W))
+     val fl1_2 = RegInit(0.U(8.W))
+     val fl2_1 = RegInit(0.U(8.W))
+     val fl2_2 = RegInit(0.U(8.W))
+     val fl2_3 = RegInit(0.U(8.W))
+     val fl3_1 = RegInit(0.U(8.W))
+     val fl3_2 = RegInit(0.U(8.W))
      val reverse = RegInit(false.B)
+     val reverse1 = RegNext(reverse)
+     val reverse2 = RegNext(reverse1)
      val reverseCurrent = RegInit(false.B)
      val inChannel = RegInit(0.U(11.W))
      val outChannel = RegInit(0.U(11.W))
@@ -101,14 +121,18 @@ class Padding extends Module {
      val accum1 = RegInit(0.U(32.W))
      val layerfinal = RegInit(false.B)
      val wpadValid = RegInit(false.B)
-
+     val wValid =Reg(Bool())
+     val wValid1 =RegNext(wValid)
+     val wValid2 =RegNext(wValid1)
+     val fl_en = RegInit(false.B)
+     val f =Wire(UInt(3.W))
      when(io.informationToPadding.valid)
      {
-     datainSize := io.informationToPadding.readData(0)(18,11)
-     datainChannel := io.informationToPadding.readData(0)(10,0)
-     dataoutSize := io.informationToPadding.readData(1)(18,11)
-     dataoutChannel := io.informationToPadding.readData(1)(10,0)
-     weightSize := io.informationToPadding.readData(1)(21,19)
+     datainSize := io.informationToPadding.readData(0)(19,12)
+     datainChannel := io.informationToPadding.readData(0)(11,0)
+     dataoutSize := io.informationToPadding.readData(1)(19,12)
+     dataoutChannel := io.informationToPadding.readData(1)(11,0)
+     weightSize := io.informationToPadding.readData(1)(23,20)
      accum1 := io.informationToPadding.readData(2)
      }
      
@@ -117,13 +141,16 @@ class Padding extends Module {
      val wstate = RegInit(wstate0) 
 
      val dstate0::dstate1::dstate2::dstate3::dstate4::dstate5::Nil = Enum(6)
-     val dstate = RegInit(dstate0)                            
+     val dstate = RegInit(dstate0)
+     
+     val fldstate0 :: fldstate1 :: fldstate2 :: fldstate3 :: Nil =Enum(4)
+     val fldstate = RegInit(fldstate0)
      
      // output
-     io.paddingToPe.finalInputChannel := finalInput
-     io.paddingToPe.lineComplete := io.paddingToSr.shiftEnd
-     io.outputChannelEnd := outputChannelStart&&io.paddingToSr.shiftEnd
-     io.fsmToPadding.layerComplete := layerfinal&&io.paddingToSr.shiftEnd
+     io.paddingToBalance.finalInputChannel := finalInput
+     io.paddingToBalance.lineComplete := io.paddingToSr.shiftEnd
+     io.paddingToBalance.outputChannelEnd := outputChannelStart&&io.paddingToSr.shiftEnd
+     io.paddingToBalance.layerComplete := layerfinal&&io.paddingToSr.shiftEnd
      when((dstate === dstate0) && (a === datainChannel - 1.U) && io.paddingToSr.shiftStart)
       {
         outputChannelStart := true.B
@@ -177,25 +204,30 @@ class Padding extends Module {
                                                    ((s3===4.U*io.paddingToSr.n-1.U)&&w_f) -> true.B,
                                                    ((s5===1.U*io.paddingToSr.n-1.U)&&w_f) -> true.B))
     */
-     io.paddingToSr.datain := Mux(signal1, io.databufferToPadding.datain, VecInit(Seq.fill(64)(0.U(8.W))))
+     io.paddingToSr.datain := Mux(signal2, io.databufferToPadding.datain, VecInit(Seq.fill(64)(0.U(8.W))))
      io.paddingToSr.wr_en := paddingValid
      io.paddingToSr.wpadValid := wpadValid
+     io.paddingToSr.fl_en := RegNext(fl_en)
+     io.paddingToSr.datainChannel := datainChannel
      // io.paddingToPe
      io.paddingToPe.weight := weightReg2
-
+ 
      // io.weightbufferToPadding
-     io.weightbufferToPadding.en := weightValid
+     io.weightbufferToPadding.en := io.fsmToPadding.padEn
      io.weightbufferToPadding.addr := vitualAddr(15,0)
-
+    
      
      // io.databufferToPadding
-     io.databufferToPadding.en := paddingValid
+     io.databufferToPadding.en := io.fsmToPadding.padEn
      io.databufferToPadding.addr := MuxCase(0.U,Array((dstate===dstate2) -> (s2+dataAddr),
                                                       (dstate===dstate3) -> (s3+dataAddr),
-                                                      (dstate===dstate4) -> (s4+dataAddr) )) 
+                                                      (dstate===dstate4) -> (s4+dataAddr), 
+                                                      (fldstate===fldstate1) ->(fl1_1+fladdr+fladdr1),
+                                                      (fldstate===fldstate2) ->(fl2_1+fladdr+fladdr1),
+                                                      (fldstate===fldstate3) ->(fl3_1+fladdr+fladdr1) )) 
      // io.paddingToDdrcontrol
 
-     when((addrStart < addrHalf) && d)
+     when((addrStart <(0x8000-1).U) && d)
       {
         io.paddingToDdrcontrol.padFillTail := true.B
         d := ~d
@@ -206,7 +238,7 @@ class Padding extends Module {
        io.paddingToDdrcontrol.padFillTail :=false.B
       }
 
-     when((addrStart > addrHalf) && e)
+     when((addrStart > (0x8000-1).U) && e)
       {
        io.paddingToDdrcontrol.padFillHead := true.B
        e := ~e
@@ -223,12 +255,12 @@ class Padding extends Module {
       {
         regoutch := 0.U
       }
-
+     signal2 := RegNext(RegNext(signal1))
      signal1 := Mux((dstate === dstate1) || (dstate === dstate5), false.B, true.B)   
      paddingValid := io.fsmToPadding.padEn && (regoutch <= (dataoutChannel - 1.U))
      
      // weight padding
-     when(c === 1.U)
+     when((c === 0.U)&&(wstate===wstate1))
      {
        inChannel := Mux(inChannel === datainChannel - 1.U, 0.U, inChannel + 1.U)
        when(inChannel === datainChannel - 1.U)
@@ -244,7 +276,8 @@ class Padding extends Module {
           }
         }
        }
-     when(!io.fsmToPadding.padEn)
+     }
+      when(!io.fsmToPadding.padEn)
       {
        weightEnd := false.B  
       }
@@ -254,7 +287,7 @@ class Padding extends Module {
         vitualAddrStart := vitualAddrStart+accum1
       }  
      //accum1 := (datainChannel*dataoutChannel>>1)*9.U
-     }
+     
 
      // make some information
      mul11.io.A := outChannel
@@ -273,8 +306,7 @@ class Padding extends Module {
      mul214(1).B := 9.U
      mul214(1).CE :=delay(1)
      mul214(1).CLK :=clock
-     vitualAddr := vitualAddrStartCurrent+addrBiasCurrent+c
-    
+     vitualAddr := Mux(weightSize === 1.U,vitualAddrStartCurrent+weightAccum(21,1),vitualAddrStartCurrent+addrBiasCurrent+c)
      addrStart := mul214(0).P+vitualAddrStart
      weightAccum := mul11.io.P+inChannel
      addrBias := Mux(weightAccum(0)===0.U,mul214(1).P,mul214(1).P+4.U)
@@ -310,9 +342,14 @@ class Padding extends Module {
              
              //weightAddr := Mux(c===8.U,weightAddr,weightAddr+1.U)
              c := Mux(c === 4.U, c, c + 1.U)
-             weightReg1(2.U * c) := io.weightbufferToPadding.datain(7,0).asSInt 
-             weightReg1(2.U * c + 1.U) := io.weightbufferToPadding.datain(15,8).asSInt
-
+             when(c === 0.U)
+             {
+               wValid := true.B
+             }
+             .elsewhen(RegNext(c===4.U))
+             {
+               wValid := false.B
+             }
              when((c === 4.U) && !wpadValid)
               { 
                 wstate := wstate2 
@@ -322,29 +359,164 @@ class Padding extends Module {
            is(wstate2)
              {
              wstate := Mux(weightValid, wstate1, wstate0)
-             for(i <- 0 to 8)
-             { weightReg2(i) := Mux(reverseCurrent, weightReg1(i+1), weightReg1(i))}
              c := 0.U  
              addrBiasCurrent := addrBias
-             reverseCurrent := reverse
              vitualAddrStartCurrent := vitualAddrStart
-             wpadValid := true.B
              }
 
            
       }
+     when(wValid1)
+     {
+       weightReg1(2.U * c2) := io.weightbufferToPadding.datain(7,0).asSInt 
+       weightReg1(2.U * c2 + 1.U) := io.weightbufferToPadding.datain(15,8).asSInt
+     }
+     when(RegNext(c2 === 4.U) && !wpadValid)
+     {  
+        when(weightSize === 3.U)
+        {
+          for(i <- 0 to 8)
+         { weightReg2(i) := Mux(reverseCurrent, weightReg1(i+1), weightReg1(i))}
+        }
+        .otherwise
+        {
+          weightReg2(4) := Mux(reverseCurrent,weightReg1(1),weightReg1(0)) 
+        }
+        reverseCurrent := reverse1
+        wpadValid := true.B
 
-     
-
+     }
+      when(io.paddingToSr.shiftStart)
+      {
+        fl_en := true.B
+      }
+      .elsewhen((fl1_1===10.U)||(fl2_1===6.U)||(fl3_1===2.U))
+      {
+        fl_en := false.B
+      }
       // data state
+     switch(fldstate)
+   {
+         is(fldstate0)
+         {
+           when(paddingValid&&io.paddingToSr.firstLayer)
+           {
+             fl_en := true.B
+             fldstate := fldstate1
+           }
+         }
 
-                                   
+         is(fldstate1)
+         {
+           when(fl1_1<10.U)
+           {
+             fl1_1 := fl1_1+1.U
+           }
+            when((fl1_1 === 10.U)&&(fl1_2< datainChannel-1.U)&&io.paddingToSr.shiftStart)
+           {
+             fl1_2 := fl1_2+1.U
+             fl1_1 := 0.U
+             fladdr := fladdr+784.U
+           }
+            when((fl1_1 === 10.U)&&(fl1_2=== datainChannel-1.U)&&io.paddingToSr.shiftStart)
+           {
+             fldstate := fldstate2
+             fladdr := 11.U
+             finalInput := true.B
+           }
+         }
+
+         is(fldstate2)
+         {
+           when(fl2_1<6.U)
+           {
+             fl2_1 := fl2_1+1.U
+           }
+           when((fl2_1 === 6.U)&&io.paddingToSr.shiftStart)
+           {
+             fl2_1 := 0.U
+             when(fl2_2< datainChannel-1.U)
+             {
+               fl2_2 := fl2_2+1.U
+               fladdr1 := fladdr1 + 784.U
+             }
+             .otherwise
+             { 
+               fl2_2 := 0.U
+               fladdr1 := 0.U
+               finalInput := true.B
+               when(fl2_3<109.U)
+               {
+                 fl2_3 := fl2_3+1.U
+                 fladdr := fladdr+7.U
+               }
+               .otherwise
+               {
+                 fl2_3 := 0.U
+                 fldstate := fldstate3
+                 fladdr := 781.U
+               }
+             }
+           }
+          }
+           
+          is(fldstate3)
+          {
+            when(fl3_1<2.U)
+            {
+             fl3_1 := fl3_1+1.U
+            }
+            when((fl3_1 === 2.U)&&io.paddingToSr.shiftStart)
+            {
+             fl3_1 := 0.U
+             when(fl3_2< datainChannel-1.U)
+             {
+               fl3_2 := fl3_2+1.U
+               fladdr := fladdr+784.U
+             }
+             .otherwise
+             {
+               finalInput := true.B
+               fl3_2 := 0.U
+               fldstate := fldstate0
+               regoutch := regoutch + 1.U
+               fladdr := 0.U
+               when(regoutch === dataoutChannel-1.U)
+               {
+                layerfinal := true.B
+                outputChannelStart := true.B
+               }
+             }
+            }
+            
+          }
+
+    }       
+
+    
+     mul88(0).A := io.paddingToSr.n
+     mul88(0).B := datainSize - 3.U
+     mul88(0).CE := s3===0.U
+     mul88(0).CLK := clock  
+     mul88(1).A := io.paddingToSr.n
+     mul88(1).B := datainSize
+     mul88(1).CE := s3===0.U
+     mul88(1).CLK := clock  
+     mul88(2).A := Cat(b(6,0),0.U)
+     mul88(2).B := io.paddingToSr.n
+     mul88(2).CE := s3===2.U
+     mul88(2).CLK := clock
+     mul816.io.A := a
+     mul816.io.B := mul88(1).P
+     mul816.io.CE := s3===2.U
+     mul816.io.CLK := clock
+     f := Mux(datainSize(0)===0.U,3.U,2.U)
      switch(dstate)
    {
          
           is(dstate0)
           {
-           when(paddingValid)
+           when(paddingValid&& !io.paddingToSr.firstLayer)
              {  
                 
                 when(io.paddingToSr.dstart)
@@ -394,7 +566,7 @@ class Padding extends Module {
             {
              s3 := Mux(s3 === 4.U * io.paddingToSr.n - 1.U, s3, s3 + 1.U)               
              
-             when(s3 === 4.U * io.paddingToSr.n - 2.U)
+             when(s3 === 1.U)
               {
                //s3 := 0.U
                  a := Mux(a === datainChannel - 1.U, 0.U, a + 1.U)
@@ -405,20 +577,31 @@ class Padding extends Module {
               }
              when((s3 === 4.U * io.paddingToSr.n - 1.U) && io.paddingToSr.dstart)
                    {
-                    dataAddr := Mux((b === ((datainSize - 4.U) >> 1.U)) && (a === 0.U), io.paddingToSr.n * (datainSize - 3.U), io.paddingToSr.n + 2.U * b * io.paddingToSr.n + a * datainSize * io.paddingToSr.n)
+                    s3 := 0.U
+                    when( ((datainSize(0)===0.U)&&(b === ((datainSize - 4.U) >> 1.U))&&(a === 0.U))||((datainSize(0)===1.U)&&(b === ((datainSize - 3.U) >> 1.U))&&(a === 0.U)) )
+                    {
+                     dstate := dstate4    
+                     b := 0.U 
+                     dataAddr := Mux(datainSize(0)===0.U, mul88(0).P, mul88(0).P+io.paddingToSr.n)
+                    }
+                    .otherwise
+                    {
+                      dataAddr := io.paddingToSr.n+mul88(2).P+mul816.io.P
+                    }
+                    /*dataAddr := Mux((b === ((datainSize - 4.U) >> 1.U)) && (a === 0.U), io.paddingToSr.n * (datainSize - 3.U), io.paddingToSr.n + 2.U * b * io.paddingToSr.n + a * datainSize * io.paddingToSr.n)
                     s3 := 0.U
                     when((b === ((datainSize - 4.U) >> 1.U)) && (a === 0.U))
                      {
                       dstate := dstate4    
                       b := 0.U 
-                     }
+                     }*/
                    } 
              }
            is(dstate4)
-            { 
-             s4 := Mux(s4 === 3.U * io.paddingToSr.n - 1.U, 0.U, s4 + 1.U)
+            {
+             s4 := Mux(s4 === f * io.paddingToSr.n - 1.U, 0.U, s4 + 1.U)
              
-              when(s4 === 3.U * io.paddingToSr.n - 1.U)
+              when(s4 === f * io.paddingToSr.n - 1.U)
                {
                 dstate := dstate5 
                 //dataAddr := Mux(a===datainChannel-1.U,0.U,io.paddingToSr.n* (datainSize-3.U)+(a+1.U)*datainSize*io.paddingToSr.n)
@@ -444,7 +627,7 @@ class Padding extends Module {
                 {
                   a := a + 1.U
                   dstate := dstate4
-                  dataAddr := dataAddr + datainSize * io.paddingToSr.n
+                  dataAddr := dataAddr + mul88(1).P
                   s5 := 0.U
                 }
               }
@@ -452,7 +635,7 @@ class Padding extends Module {
              }
   
       } 
-}         
+}        
 
 
 

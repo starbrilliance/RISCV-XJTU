@@ -10,6 +10,7 @@ class WriteBack extends Module {
     val poolEn = Input(Bool())
     val actData = Input(Vec(448, UInt(8.W)))   // no pool
     val poolData = Input(Vec(112, UInt(8.W)))  // need pool
+    val inputSize = Input(UInt(8.W))
     val outputSize = Input(UInt(8.W)) 
     val dataOut = Output(UInt(512.W))
     val validOut = Output(Bool())  
@@ -24,6 +25,7 @@ class WriteBack extends Module {
   val writeNum = RegInit(7.U(3.W))
   val count = RegInit(VecInit(Seq.fill(2)(0.U(3.W))))
   val enable = RegInit(VecInit(Seq.fill(2)(false.B)))
+  val lineNum = RegInit(0.U(3.W))
 
   import Store._
   actDataTemp0(0) := concatenate(io.actData, 63)
@@ -41,6 +43,10 @@ class WriteBack extends Module {
     writeNum := io.outputSize(7, 6) + io.outputSize(5, 0).orR.asUInt
   }
 
+  when((io.inputSize === 7.U) && io.writeComplete)  {
+    lineNum := lineNum + 2.U
+  }
+
   when(io.writeStart) {
     enable(0) := true.B
   } .elsewhen(complete(0)) {
@@ -53,7 +59,7 @@ class WriteBack extends Module {
     count(0) := count(0) + 1.U
   }
 
-  when(complete(0) && !io.poolEn) {
+  when(complete(0) && !io.poolEn && (lineNum =/= 6.U)) {
     enable(1) := true.B
   } .elsewhen(complete(1)) {
     enable(1) := false.B
@@ -72,6 +78,6 @@ class WriteBack extends Module {
   actOut := Mux(enable(1), actDataTemp1(count(1)), actDataTemp0(count(0)))
 
   io.dataOut := Mux(io.poolEn, poolDataTemp(count(0)), actOut)
-  io.writeComplete := Mux(io.poolEn, complete(0), complete(1))
+  io.writeComplete := Mux(io.poolEn || ((io.inputSize === 7.U) && (lineNum === 6.U)), complete(0), complete(1))
   io.validOut := valid(0) || valid(1)
 }

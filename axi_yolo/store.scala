@@ -6,8 +6,9 @@ import chisel3.util._
 import AXI4Parameters._
 
 class StoreToDdrCIO extends Bundle {
+  val storeComplete = Input(Bool())
   val storeValid = Output(Bool())
-  val dataOut = Output(UInt(C_S_AXI_DATA_WIDTH.W))
+  val dataOut = Output(Vec(7, UInt(C_S_AXI_DATA_WIDTH.W)))
 }
 
 class Store extends Module {
@@ -17,20 +18,15 @@ class Store extends Module {
     // from data buffer
     val dataIn = Input(UInt(56.W))
     val readEn = Output(Bool())
-    // from ducm
-    val ddrWriteRdy = Input(Bool())
     // to ddrC
     val toDdrC = new StoreToDdrCIO
   })
 
   val dataTemp0 = Reg(Vec(64, UInt(56.W)))
   val dataTemp1 = Wire(Vec(7, UInt(C_S_AXI_DATA_WIDTH.W)))
-  val count0 = RegInit(0.U(6.W))
-  val count1 = RegInit(0.U(3.W))
+  val count = RegInit(0.U(6.W))
   val readDelay = ShiftRegister(io.readEn, 2)
-  val storeDelay = ShiftRegister(io.ddrStoreEn, 2)
-  val count0Valid = Wire(Bool())
-  val countStop = Wire(Bool())
+  val storeStop = RegInit(false.B)
 
   import Store._
 
@@ -43,26 +39,21 @@ class Store extends Module {
   dataTemp1(6) := Cat(concatenate(dataTemp0, 63, 55), dataTemp0(54)(55, 48))
 
   when(readDelay) {
-    count0 := count0 + 1.U
-    dataTemp0(count0) := io.dataIn
+    count := count + 1.U
+    dataTemp0(count) := io.dataIn
   }
 
-  when(io.toDdrC.storeValid && !countStop) {
-    count1 := Mux(count1 === 6.U, 0.U, count1 + 1.U)
+  when(count === 61.U) {
+    storeStop := true.B
+  } .elsewhen(io.toDdrC.storeComplete) {
+    storeStop := false.B
   }
 
-  count0Valid := ((count0 === 10.U) || (count0 === 19.U) || 
-                 (count0 === 28.U) || (count0 === 37.U) || 
-                 (count0 === 46.U) || (count0 === 55.U) ||
-                 (count0 === 0.U)) && RegNext(storeDelay)
+  io.readEn := io.ddrStoreEn && !storeStop          
 
-  countStop := !io.ddrWriteRdy && count0Valid
+  io.toDdrC.storeValid := storeStop
 
-  io.readEn := io.ddrStoreEn && !countStop          
-
-  io.toDdrC.storeValid := RegNext(count0Valid)
-
-  io.toDdrC.dataOut := RegNext(dataTemp1(count1))
+  io.toDdrC.dataOut := RegNext(dataTemp1)
 }
 
 object Store {

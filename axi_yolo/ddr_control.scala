@@ -5,7 +5,7 @@ import chisel3.util._
 
 import AXI4Parameters._
 
-class DdrControl extends Module {
+class DdrControl(simulation: Boolean = false) extends Module {
   val io = IO(new Bundle {
     // buffer data ports
     val ddrToBuffer = Output(UInt(C_S_AXI_DATA_WIDTH.W))
@@ -24,6 +24,8 @@ class DdrControl extends Module {
     val control = Flipped(new AXI4CMDIO)   // user cmd ports
     val wrdata = Flipped(new AXI4WriteIO)  // user write data ports 
     val rddata = Flipped(new AXI4ReadIO)   // user read data ports
+    // if define sim
+    val sim = if(simulation) Some(new SimToDdrCIO) else None
   })
 
   val infoRegs = RegInit(VecInit(Seq.fill(7)(0.U(32.W))))
@@ -41,7 +43,9 @@ class DdrControl extends Module {
     cmdEnFlag := false.B
   }
 
-  when(io.wrdata.vld && io.wrdata.rdy || io.rddata.vld) {
+  when(io.wrdata.cmptd) {
+    transCount := 0.U
+  } .elsewhen(io.rddata.vld || io.wrdata.vld) {
     transCount := transCount + 1.U
   }
 
@@ -59,8 +63,8 @@ class DdrControl extends Module {
 
   when(infoEn) {
     infoRegs(0) := io.fromInfo.dataOut(0)
-  } .elsewhen(io.wrdata.cmptd) {
-    infoRegs(0) := Cat(infoRegs(0)(31, 14) + 1.U, infoRegs(0)(13, 0)) 
+  } .elsewhen(io.wrdata.cmptd && io.ddrToFsm.writeDataEn) {
+    infoRegs(0) := infoRegs(0) + 448.U
   }
 
   when(infoEn) {
@@ -90,7 +94,8 @@ class DdrControl extends Module {
   when(infoEn) {
     infoRegs(5) := io.fromInfo.dataOut(5)
   } .elsewhen(io.ddrToFsm.readDataEn && io.rddata.vld) {
-    infoRegs(5) := Mux(infoRegs(5) < 64.U, 0.U, infoRegs(5) - 64.U)
+    //infoRegs(5) := Mux(infoRegs(5) < 64.U, 0.U, infoRegs(5) - 64.U)
+    infoRegs(5) := Mux(infoRegs(5) < 14.U, 0.U, infoRegs(5) - 14.U)
   }
 
   when(infoEn) {
@@ -99,28 +104,71 @@ class DdrControl extends Module {
     infoRegs(6) := Mux(infoRegs(6) < 64.U, 0.U, infoRegs(6) - 64.U)
   }
 
-  io.control.cmd_en := (io.ddrToFsm.readDataEn || io.ddrToFsm.readBiasEn ||
-                        io.ddrToFsm.readWeightEn || io.ddrToFsm.writeDataEn ||
-                        weightFillEn) && !cmdEnFlag 
+  if(simulation) {
+    io.control.cmd_en := (io.ddrToFsm.readDataEn || io.ddrToFsm.readBiasEn ||
+                          io.ddrToFsm.readWeightEn || io.fromStore.storeValid ||
+                          weightFillEn) && !cmdEnFlag || io.sim.get.control.cmd_en && io.sim.get.simEn
 
-  io.control.cmd := Mux(io.ddrToFsm.writeDataEn, "b100".U, 0.U)
+    io.control.cmd := MuxCase(0.U, Array(io.sim.get.simEn -> io.sim.get.control.cmd,
+                                         io.ddrToFsm.writeDataEn -> "b100".U))
 
-  io.control.addr := MuxCase(0.U, Array(io.ddrToFsm.writeDataEn -> infoRegs(0),
-                                        io.ddrToFsm.readDataEn -> infoRegs(1), 
-                                        (io.ddrToFsm.readWeightEn || weightFillEn) -> infoRegs(2),
-                                        io.ddrToFsm.readBiasEn -> infoRegs(3)))
+    io.control.addr := MuxCase(0.U, Array(io.sim.get.simEn -> io.sim.get.control.addr,
+                                          io.ddrToFsm.writeDataEn -> infoRegs(0),
+                                          io.ddrToFsm.readDataEn -> infoRegs(1), 
+                                          (io.ddrToFsm.readWeightEn || weightFillEn) -> infoRegs(2),
+                                          io.ddrToFsm.readBiasEn -> infoRegs(3)))
 
-  io.wrdata.vld := Mux(infoRegs(6) === 0.U, io.ddrToFsm.writeDataEn && (transCount =/= 0.U), io.fromStore.storeValid)
+    io.wrdata.vld := Mux(io.sim.get.simEn, io.sim.get.wrdata.vld, io.fromStore.storeValid && RegNext(io.wrdata.rdy))
 
-  io.wrdata.data := io.fromStore.dataOut 
+    io.wrdata.data := Mux(io.sim.get.simEn, io.sim.get.wrdata.data, io.fromStore.dataOut(transCount))
 
-  io.wrdata.bvld := Mux(infoRegs(6) === 0.U, 0.U, "hffff_ffff_ffff_ffff".U)
+    io.wrdata.bvld := Mux(io.sim.get.simEn, io.sim.get.wrdata.bvld, "hffff_ffff_ffff_ffff".U)
 
-  io.control.blen := 255.U
+    io.wrdata.cmptd := Mux(io.sim.get.simEn, io.sim.get.wrdata.cmptd, io.fromStore.storeValid && (transCount === 6.U))
 
-  io.wrdata.cmptd := (transCount === 255.U) && io.wrdata.rdy && io.wrdata.vld
+    io.sim.get.control.cmd_ack := io.control.cmd_ack
+
+    io.sim.get.wrdata.rdy := io.wrdata.rdy
+
+    io.sim.get.wrdata.sts := io.wrdata.sts
+    
+    io.sim.get.wrdata.sts_vld := io.wrdata.sts_vld
+
+    io.sim.get.rddata.vld := io.rddata.vld
+
+    io.sim.get.rddata.data := io.rddata.data
+
+    io.sim.get.rddata.bvld := io.rddata.bvld
+
+    io.sim.get.rddata.cmptd := io.rddata.cmptd
+
+    io.sim.get.rddata.sts := io.rddata.sts
+  } else {
+    io.control.cmd_en := (io.ddrToFsm.readDataEn || io.ddrToFsm.readBiasEn ||
+                          io.ddrToFsm.readWeightEn || io.fromStore.storeValid ||
+                          weightFillEn) && !cmdEnFlag 
+
+    io.control.cmd := Mux(io.ddrToFsm.writeDataEn, "b100".U, 0.U)
+
+    io.control.addr := MuxCase(0.U, Array(io.ddrToFsm.writeDataEn -> infoRegs(0),
+                                          io.ddrToFsm.readDataEn -> infoRegs(1), 
+                                          (io.ddrToFsm.readWeightEn || weightFillEn) -> infoRegs(2),
+                                          io.ddrToFsm.readBiasEn -> infoRegs(3)))
+
+    io.wrdata.vld := io.fromStore.storeValid && RegNext(io.wrdata.rdy)
+
+    io.wrdata.data := io.fromStore.dataOut(transCount) 
+
+    io.wrdata.bvld := "hffff_ffff_ffff_ffff".U
+
+    io.wrdata.cmptd := io.fromStore.storeValid && (transCount === 6.U)
+  }
+
+  io.control.blen := Mux(io.ddrToFsm.writeDataEn, 6.U, 255.U)
 
   io.rddata.rdy := cmdEnFlag
+
+  io.fromStore.storeComplete := io.wrdata.cmptd
 
   io.ddrToFsm.readWeightComplete := io.ddrToFsm.readWeightEn && weightFillCount(11).toBool && (transCount === 0.U)
 
@@ -128,7 +176,7 @@ class DdrControl extends Module {
 
   io.ddrToFsm.readDataComplete := io.ddrToFsm.readDataEn && (infoRegs(5) === 0.U) && (transCount === 0.U)
 
-  io.ddrToFsm.writeDataComplete := io.ddrToFsm.writeDataEn && (infoRegs(6) === 0.U) && (transCount === 0.U)
+  io.ddrToFsm.writeDataComplete := io.ddrToFsm.writeDataEn && (infoRegs(6) === 0.U) && io.wrdata.cmptd
   
   io.ddrToFsm.infoComplete := infoEnDelay1 && !infoEnDelay2
 

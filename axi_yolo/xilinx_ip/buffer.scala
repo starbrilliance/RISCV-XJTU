@@ -60,7 +60,7 @@ object WeightBufferParameter {
   val halfWriteDepth = 0x400.U(11.W)
   val readDepth = 0x10000.U(17.W)
   val addrEnd = readDepth - 1.U
-  val addrHalf = (readDepth >> 1) - 1.U
+  val addrHalf = (0x8000 - 1).U
 }
 
 // BiasBuffer 256×512b
