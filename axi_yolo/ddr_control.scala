@@ -94,8 +94,7 @@ class DdrControl(simulation: Boolean = false) extends Module {
   when(infoEn) {
     infoRegs(5) := io.fromInfo.dataOut(5)
   } .elsewhen(io.ddrToFsm.readDataEn && io.rddata.vld) {
-    //infoRegs(5) := Mux(infoRegs(5) < 64.U, 0.U, infoRegs(5) - 64.U)
-    infoRegs(5) := Mux(infoRegs(5) < 14.U, 0.U, infoRegs(5) - 14.U)
+    infoRegs(5) := Mux(infoRegs(5) < 64.U, 0.U, infoRegs(5) - 64.U)
   }
 
   when(infoEn) {
