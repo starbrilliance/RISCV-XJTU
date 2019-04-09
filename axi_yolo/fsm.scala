@@ -129,14 +129,14 @@ object Fsm {
 
   val default =
     //               idle   infoEn  readDataEn  readWeightEn  readBiasEn  padEn  writeDataEn
-    //                |       |        |            |           |        |        |  
-                List( N,      N,       N,           N,          N,       N,       N  )
+    //                |       |        |            |             |         |        |  
+                List( N,      N,       N,           N,            N,        N,       N  )
   val map = Array(
-        IDLE -> List( Y,      N,       N,           N,          N,       N,       N  ),
-        INFO -> List( N,      Y,       N,           N,          N,       N,       N  ),
-        RI   -> List( N,      N,       Y,           N,          N,       N,       N  ),
-        RW   -> List( N,      N,       N,           Y,          N,       N,       N  ),
-        RB   -> List( N,      N,       N,           N,          Y,       N,       N  ),
-        CAL  -> List( N,      N,       N,           N,          N,       Y,       N  ),
-        STORE-> List( N,      N,       N,           N,          N,       N,       Y  ))  
+        IDLE -> List( Y,      N,       N,           N,            N,        N,       N  ),
+        INFO -> List( N,      Y,       N,           N,            N,        N,       N  ),
+        RI   -> List( N,      N,       Y,           N,            N,        N,       N  ),
+        RW   -> List( N,      N,       N,           Y,            N,        N,       N  ),
+        RB   -> List( N,      N,       N,           N,            Y,        N,       N  ),
+        CAL  -> List( N,      N,       N,           N,            N,        Y,       N  ),
+        STORE-> List( N,      N,       N,           N,            N,        N,       Y  ))  
 }
