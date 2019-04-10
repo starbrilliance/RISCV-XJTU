@@ -151,7 +151,7 @@ class Padding extends Module {
      io.paddingToBalance.lineComplete := io.paddingToSr.shiftEnd
      io.paddingToBalance.outputChannelEnd := outputChannelStart&&io.paddingToSr.shiftEnd
      io.paddingToBalance.layerComplete := layerfinal&&io.paddingToSr.shiftEnd
-     when((dstate === dstate0) && (a === datainChannel - 1.U) && io.paddingToSr.shiftStart)
+     when((dstate === dstate0) && (a === datainChannel - 1.U) && io.paddingToSr.shiftStart && !io.paddingToSr.firstLayer)
       {
         outputChannelStart := true.B
       }
@@ -412,18 +412,22 @@ class Padding extends Module {
            {
              fl1_1 := fl1_1+1.U
            }
-            when((fl1_1 === 10.U)&&(fl1_2< datainChannel-1.U)&&io.paddingToSr.shiftStart)
+            when((fl1_1 === 10.U)&& io.paddingToSr.shiftStart)
            {
-             fl1_2 := fl1_2+1.U
              fl1_1 := 0.U
-             fladdr := fladdr+784.U
+             when(fl1_2< datainChannel-1.U)
+             {
+               fl1_2 := fl1_2+1.U
+               fladdr := fladdr+784.U
+             }
+             .otherwise
+             {
+               fldstate := fldstate2
+               fladdr := 11.U
+               finalInput := true.B
+             }
            }
-            when((fl1_1 === 10.U)&&(fl1_2=== datainChannel-1.U)&&io.paddingToSr.shiftStart)
-           {
-             fldstate := fldstate2
-             fladdr := 11.U
-             finalInput := true.B
-           }
+            
          }
 
          is(fldstate2)
@@ -478,13 +482,17 @@ class Padding extends Module {
              {
                finalInput := true.B
                fl3_2 := 0.U
-               fldstate := fldstate0
                regoutch := regoutch + 1.U
                fladdr := 0.U
+               outputChannelStart := true.B
                when(regoutch === dataoutChannel-1.U)
                {
                 layerfinal := true.B
-                outputChannelStart := true.B
+                fldstate := fldstate0
+               }
+               .otherwise
+               {
+                fldstate := fldstate1
                }
              }
             }

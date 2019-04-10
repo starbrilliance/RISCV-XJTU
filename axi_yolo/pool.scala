@@ -4,7 +4,7 @@ import chisel3._
 
 class MaxComparator extends Module {
   val io = IO(new Bundle {
-    val writeComplete = Input(Bool())
+    val layerComplete = Input(Bool())
     val dataIn = Input(Vec(4, UInt(8.W)))
     val validIn = Input(Bool())
     val dataOut = Output(UInt(8.W))
@@ -17,7 +17,7 @@ class MaxComparator extends Module {
   dataTemp(1) := Mux(io.dataIn(2) > io.dataIn(3), io.dataIn(2), io.dataIn(3))
   dataTemp(2) := Mux(dataTemp(0) > dataTemp(1), dataTemp(0), dataTemp(1))
 
-  when(io.writeComplete) {
+  when(io.layerComplete) {
     dataTempReg := 0.U
   } .elsewhen(io.validIn) {
     dataTempReg := dataTemp(2)
@@ -31,7 +31,7 @@ class MaxPool extends Module {
     // information regs
     val poolEn = Input(Bool())
     // clear
-    val writeComplete = Input(Bool())
+    val layerComplete = Input(Bool())
     // active
     val activeComplete = Input(Bool())
     val validIn = Input(Vec(112, Bool()))
@@ -49,7 +49,7 @@ class MaxPool extends Module {
     maxComparator(i).dataIn(2) := io.dataIn(i * 2 + 224)
     maxComparator(i).dataIn(3) := io.dataIn(i * 2 + 225)
     maxComparator(i).validIn := io.poolEn && io.validIn(i)
-    maxComparator(i).writeComplete := io.writeComplete
+    maxComparator(i).layerComplete := io.layerComplete
     io.dataOut(i) := maxComparator(i).dataOut
   }
 

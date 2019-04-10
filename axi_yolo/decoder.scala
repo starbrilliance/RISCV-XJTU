@@ -29,21 +29,20 @@ object Control {
   import Instructions._
 
   val default =
-    //                     wr_en   reg_num  FSM_en   reg_reset  bias_reset  illegal? 
-    //                       |        |        |        |           |          |
-                      List(WR_NOT, REG_XXX, FSM_NOT, RES_NOT,    RES_NOT,      Y)
+    //                     wr_en   reg_num  FSM_en   reg_reset  illegal? 
+    //                       |        |        |        |          |
+                      List(WR_NOT, REG_XXX, FSM_NOT, RES_NOT,      Y)
   val map = Array(
-    YoloOutputAddr -> List(WR_EN,  REG_0,   FSM_NOT, RES_NOT,    RES_NOT,      N),
-    YoloInputAddr  -> List(WR_EN,  REG_1,   FSM_NOT, RES_NOT,    RES_NOT,      N),
-    YoloWeightAddr -> List(WR_EN,  REG_2,   FSM_NOT, RES_NOT,    RES_NOT,      N),
-    YoloBiasAddr   -> List(WR_EN,  REG_3,   FSM_NOT, RES_NOT,    RES_NOT,      N),
-    YoloBiasInfo   -> List(WR_EN,  REG_4,   FSM_NOT, RES_NOT,    RES_NOT,      N),
-    YoloInputInfo  -> List(WR_EN,  REG_5,   FSM_NOT, RES_NOT,    RES_NOT,      N),
-    YoloOutputInfo -> List(WR_EN,  REG_6,   FSM_NOT, RES_NOT,    RES_NOT,      N),
-    YoloNOP        -> List(WR_NOT, REG_XXX, FSM_NOT, RES_NOT,    RES_NOT,      N),
-    YoloFSMStart   -> List(WR_NOT, REG_XXX, FSM_EN,  RES_NOT,    RES_NOT,      N),    
-    YoloBiasReset  -> List(WR_NOT, REG_XXX, FSM_NOT, RES_NOT,    RES_EN,       N),
-    YoloRegReset   -> List(WR_NOT, REG_XXX, FSM_NOT, RES_EN,     RES_NOT,      N))
+    YoloOutputAddr -> List(WR_EN,  REG_0,   FSM_NOT, RES_NOT,      N),
+    YoloInputAddr  -> List(WR_EN,  REG_1,   FSM_NOT, RES_NOT,      N),
+    YoloWeightAddr -> List(WR_EN,  REG_2,   FSM_NOT, RES_NOT,      N),
+    YoloBiasAddr   -> List(WR_EN,  REG_3,   FSM_NOT, RES_NOT,      N),
+    YoloBiasInfo   -> List(WR_EN,  REG_4,   FSM_NOT, RES_NOT,      N),
+    YoloInputInfo  -> List(WR_EN,  REG_5,   FSM_NOT, RES_NOT,      N),
+    YoloOutputInfo -> List(WR_EN,  REG_6,   FSM_NOT, RES_NOT,      N),
+    YoloNOP        -> List(WR_NOT, REG_XXX, FSM_NOT, RES_NOT,      N),
+    YoloFSMStart   -> List(WR_NOT, REG_XXX, FSM_EN,  RES_NOT,      N),    
+    YoloRegReset   -> List(WR_NOT, REG_XXX, FSM_NOT, RES_EN,       N))
 }
 
 class DecoderToRegsIO extends Bundle {
@@ -61,28 +60,36 @@ class DecoderIO extends Bundle {
   val regsPorts = new DecoderToRegsIO 
   val fsmPorts = new DecoderToFsmIO
   val readBiasComplete = Input(Bool())
+  val powerOnRst = Input(Bool())
   val systemRst = Output(Bool())
   val illegal = Output(Bool())
 }
 
 class Decoder extends Module {
   val io = IO(new DecoderIO)
-  val ctrlSignals = ListLookup(io.fifoPorts.dataOut, Control.default, Control.map)
-  val rstDelay = ShiftRegister(ctrlSignals(3), 5)
+
   val read = RegNext(!io.fifoPorts.empty)
-  val biasFlag = Reg(Bool())
+  val read_delay = RegNext(read)
+  val inst = Mux(read_delay, io.fifoPorts.dataOut, "h0000_000B".U)
+  val ctrlSignals = ListLookup(inst, Control.default, Control.map)
+  
+  val biasFlag = withReset(io.powerOnRst) {
+    RegInit(true.B)
+  }
 
   when(io.readBiasComplete) {
     biasFlag := false.B
-  } .elsewhen(ctrlSignals(4).toBool) {
-    biasFlag := true.B
   }
+
+  val rstDelay0 = RegNext(ctrlSignals(3).toBool)
+  val rstDelay1 = RegNext(rstDelay0)
+  val rstDelay2 = RegNext(rstDelay1)
 
   io.fifoPorts.readEn := read
   io.regsPorts.writeEn := ctrlSignals(0)
   io.regsPorts.regNum := ctrlSignals(1)
   io.fsmPorts.fsmStar := ctrlSignals(2)
   io.fsmPorts.biasEn := biasFlag
-  io.systemRst := ctrlSignals(3).toBool && !rstDelay
-  io.illegal := ctrlSignals(5)
+  io.systemRst := ctrlSignals(3).toBool || rstDelay0 || rstDelay1 || rstDelay2
+  io.illegal := ctrlSignals(4)
 }
