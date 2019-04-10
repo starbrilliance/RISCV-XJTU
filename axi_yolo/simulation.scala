@@ -45,9 +45,8 @@ class Simulator extends Module {
   import Instructions._
 
   val inst = VecInit(// global reset
-                     "h0600_000B".U,  // YoloRegReset
+                     "h0400_000B".U,  // YoloRegReset
                      // layer 1
-                     "h0400_000B".U,  // YoloBiasReset
                      "h0000_200B".U,  // YoloOutputAddr
                      "h0200_200B".U,  // YoloInputAddr
                      "h0400_200B".U,  // YoloWeightAddr
@@ -56,28 +55,22 @@ class Simulator extends Module {
                      "h0A00_200B".U,  // YoloInputInfo
                      "h0C00_200B".U,  // YoloOutputInfo
                      "h0200_000B".U,  // YoloFSMStart
-                     "h0000_000B".U,  // YoloNOP
                      // layer 2
                      "h0C00_200B".U,  // YoloOutputInfo
                      "h0200_000B".U,  // YoloFSMStart
-                     "h0400_000B".U,  // YoloNOP
                      // layer 3
                      "h0C00_200B".U,  // YoloOutputInfo
                      "h0200_000B".U,  // YoloFSMStart
-                     "h0400_000B".U,  // YoloNOP
                      // layer 4
                      "h0C00_200B".U,  // YoloOutputInfo
                      "h0200_000B".U,  // YoloFSMStart
-                     "h0400_000B".U,  // YoloNOP
                      // layer 5
                      "h0C00_200B".U,  // YoloOutputInfo
-                     "h0200_000B".U,  // YoloFSMStart
-                     "h0400_000B".U)  // YoloNOP
+                     "h0200_000B".U)  // YoloFSMStart
   
   val info = VecInit(// global reset
                      "h0000_0000".U,     // YoloRegReset      nothing
                      // layer 1
-                     "h0000_0000".U,     // YoloBiasReset     nothing
                      "h0000_0000".U,     // YoloOutputAddr    address 0x00000000
                      "h0000_0000".U,     // YoloInputAddr     address 0x00000000
                      "h1000_0000".U,     // YoloWeightAddr    address 0x10000000
@@ -86,23 +79,18 @@ class Simulator extends Module {
                      "h0_0_0_E0_001".U,  // YoloInputInfo     ic-1 dsize-224
                      "h0_3_3_70_002".U,  // YoloOutputInfo    oc-2 dsize-112 ksize-3 pool-1 first-1 final-0
                      "h0000_0000".U,     // YoloFSMStart      nothing
-                     "h0000_0000".U,     // YoloNOP           nothing
                      // layer 2
                      "h0_1_3_38_001".U,  // YoloOutputInfo    oc-1 dsize-56  ksize-3 pool-1 first-0 final-0
                      "h0000_0000".U,     // YoloFSMStart      nothing
-                     "h0000_0000".U,     // YoloNOP           nothing
                      // layer 3
                      "h0_1_3_1C_002".U,  // YoloOutputInfo    oc-2 dsize-28  ksize-3 pool-1 first-0 final-0
                      "h0000_0000".U,     // YoloFSMStart      nothing
-                     "h0000_0000".U,     // YoloNOP           nothing
                      // layer 4
                      "h0_1_1_0E_001".U,  // YoloOutputInfo    oc-1 dsize-14  ksize-1 pool-1 first-0 final-0
                      "h0000_0000".U,     // YoloFSMStart      nothing
-                     "h0000_0000".U,     // YoloNOP           nothing
                      // layer 5
                      "h0_5_1_07_002".U,  // YoloOutputInfo    oc-2 dsize-7   ksize-1 pool-1 first-0 final-1
-                     "h0000_0000".U,     // YoloFSMStart      nothing
-                     "h0000_0000".U)     // YoloNOP           nothing
+                     "h0000_0000".U)     // YoloFSMStart      nothing
                      
   val count = RegInit(0.U(5.W))
 
@@ -110,9 +98,9 @@ class Simulator extends Module {
     count := count + 1.U
   }
 
-  val instEnd = (count === 11.U) || (count === 14.U) ||
-                (count === 17.U) || (count === 20.U) ||
-                (count === 23.U)
+  val instEnd = (count === 9.U) || (count === 11.U) ||
+                (count === 13.U) || (count === 15.U) ||
+                (count === 17.U)
 
   io.toTop.simInstEnd := instEnd
   io.core_clk := clock

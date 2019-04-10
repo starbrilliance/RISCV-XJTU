@@ -109,6 +109,7 @@ class Top(simulation: Boolean = false) extends RawModule {
     dFifo.io.sys.systemRst := ui_rst || io.isRst
 
     decoder.io.readBiasComplete := ddrControl.io.ddrToFsm.readBiasComplete
+    decoder.io.powerOnRst := ui_rst
     decoder.io.regsPorts <> infoRegs.io.decoderPorts
     fsm.io.fromDecoder <> decoder.io.fsmPorts
     io.isRst :=  decoder.io.systemRst
@@ -184,6 +185,8 @@ class Top(simulation: Boolean = false) extends RawModule {
     weightBufferControl.io.padToWB <> pad.io.paddingToDdrcontrol
 
     biasBufferControl.io.ddrBiasEn := ddrControl.io.biasBufferEn
+    biasBufferControl.io.readBiasComplete := ddrControl.io.ddrToFsm.readBiasComplete
+    biasBufferControl.io.writeDataComplete := ddrControl.io.ddrToFsm.writeDataComplete
     biasBufferControl.io.realOCEnd := balance.io.realOCEnd
     biasBufferControl.io.douta := biasBuffer.io.douta
     
@@ -207,13 +210,13 @@ class Top(simulation: Boolean = false) extends RawModule {
     pe.io.firstLayer := infoRegs.io.toFsm.firstLayer
     pe.io.validIn := shiftRegs.io.srToPadding.shift    
 
-    active.io.writeComplete := writeback.io.writeComplete
+    active.io.layerComplete := balance.io.realLayerEnd
     active.io.realLineEnd := balance.io.realLineEnd
     active.io.validIn := pe.io.validOut
     active.io.dataIn := pe.io.dataOut
 
     pool.io.poolEn := infoRegs.io.toInfo.readData(6)(24)
-    pool.io.writeComplete := writeback.io.writeComplete
+    pool.io.layerComplete := balance.io.realLayerEnd
     pool.io.activeComplete := active.io.activeComplete
     for(i <- 0 until 112) {
       pool.io.validIn(i) := active.io.validOut(i * 2 + 1)

@@ -6,7 +6,7 @@ import chisel3.util._
 class Active extends Module {
   val io = IO(new Bundle {
     // clear
-    val writeComplete = Input(Bool())
+    val layerComplete = Input(Bool())
     // complete
     val realLineEnd = Input(Bool())
     val activeComplete = Output(Bool()) 
@@ -23,17 +23,17 @@ class Active extends Module {
   val dataOutReg = RegNext(dataOutTemp)
 
   for(i <- 0 until 224) {
-    when(io.writeComplete) {
+    when(io.layerComplete) {
       dataTemp(i) := 0.S
       dataTemp(i + 224) := 0.S
     } .elsewhen(io.validIn(i)) {
       dataTemp(i) := io.dataIn(i)
       dataTemp(i + 224) := io.dataIn(i + 224)
     }
-    dataOutTemp(i) := MuxCase(dataTemp(i)(6, 0), Array(dataTemp(i)(30).toBool -> 0.U,
-                                                       dataTemp(i)(29, 7).orR -> 127.U))
-    dataOutTemp(i + 224) := MuxCase(dataTemp(i + 224)(6, 0), Array(dataTemp(i + 224)(30).toBool -> 0.U,
-                                                                   dataTemp(i + 224)(29, 7).orR -> 127.U))
+    dataOutTemp(i) := MuxCase(dataTemp(i)(6, 0), Array(dataTemp(i)(31).toBool -> 0.U,
+                                                       dataTemp(i)(30, 7).orR -> 127.U))
+    dataOutTemp(i + 224) := MuxCase(dataTemp(i + 224)(6, 0), Array(dataTemp(i + 224)(31).toBool -> 0.U,
+                                                                   dataTemp(i + 224)(30, 7).orR -> 127.U))
   }
   
   io.dataOut := dataOutReg
